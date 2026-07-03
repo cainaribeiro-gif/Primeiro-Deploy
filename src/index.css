@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Marcellus&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Marcellus", "Georgia", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-gold-champagne: #FFEBA5;
+  --color-green-deep: #8C434E;
+  
+  --color-gold-matte: #C5A059;
+  --color-gold-light: #FFEBA5;
+  --color-nude-warm: #FAF6F0;
+  --color-nude-dark: #E4D9CD;
+  --color-taupe: #6B5E60;
+
+  --color-brand-wine: #8C434E;
+  --color-brand-wine-dark: #5A252D;
+  --color-brand-wine-light: #A36F79;
+  
+  --color-brand-gold: #FFEBA5;
+  --color-brand-gold-dark: #C29B47;
+  --color-brand-gold-bronze: #A37A3B;
+
+  --color-brand-off-white: #FFFDF9;
+  --color-brand-nude: #F5ECE1;
+  --color-brand-marfim: #FAF6F0;
+  --color-brand-taupe: #6B5E60;
+  --color-brand-cinza-quente: #D1C7BD;
+  --color-brand-dourado-acetinado: #C5A059;
+  --color-brand-rose-gold: #E0A39A;
+  --color-brand-verde-oliva-suave: #8FA382;
+  --color-brand-dark: #2F1E20;
+}
+
+/* Base custom styles to ensure premium geometric experience */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-nude-warm);
+  color: var(--color-green-deep);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-nude-warm);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-green-deep);
+}
+
+.font-serif {
+  font-family: var(--font-serif), serif;
+}

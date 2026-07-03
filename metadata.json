@@ -1,0 +1,6 @@
+{
+  "name": "Clínica Dra. Claudia França",
+  "description": "Plataforma digital premium da Clínica Odontológica Dra. Claudia França - Saúde, Estética e Gestão Integrada",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
