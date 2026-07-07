@@ -1072,39 +1072,45 @@ export default function LandingPage({
               className="relative w-full aspect-[4/3] rounded-none overflow-hidden shadow-2xl border-[12px] border-neutral-100 select-none cursor-ew-resize bg-neutral-900"
               onMouseMove={handleMouseMove}
               onTouchMove={handleTouchMove}
-              onMouseDown={() => setIsDragging(true)}
+              onTouchStart={(e) => {
+                setIsDragging(true);
+                const rect = e.currentTarget.getBoundingClientRect();
+                handleSliderMove(e.touches[0].clientX, rect);
+              }}
+              onMouseDown={(e) => {
+                setIsDragging(true);
+                const rect = e.currentTarget.getBoundingClientRect();
+                handleSliderMove(e.clientX, rect);
+              }}
               onMouseUp={() => setIsDragging(false)}
               onMouseLeave={() => setIsDragging(false)}
             >
-              {/* BEFORE IMAGE (Bottom Layer) */}
+              {/* BEFORE IMAGE (Bottom Layer - visible on the left) */}
               <img 
                 src={siteContent?.beforeImageUrl || ""} 
                 alt="Sorriso Planejado (Antes)" 
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               />
-              <div className="absolute bottom-4 left-4 bg-red-600/90 border border-white/20 text-white px-3 py-1.5 rounded-none text-[9px] font-mono font-bold uppercase tracking-widest">
+              <div className="absolute bottom-4 left-4 bg-red-600/90 border border-white/20 text-white px-3 py-1.5 rounded-none text-[9px] font-mono font-bold uppercase tracking-widest z-10">
                 Antes (Simulação)
               </div>
 
-              {/* AFTER IMAGE (Top Layer cropped) */}
-              <div 
-                className="absolute inset-y-0 left-0 overflow-hidden pointer-events-none"
-                style={{ width: `${sliderPosition}%` }}
-              >
-                <img 
-                  src={siteContent?.afterImageUrl || ""} 
-                  alt="Sorriso Finalizado (Depois)" 
-                  className="absolute inset-0 w-[100vw] h-full object-cover max-w-none pointer-events-none"
-                  style={{ width: '100%' }}
-                />
-                <div className="absolute bottom-4 left-4 bg-green-deep/90 border border-white/20 text-white px-3 py-1.5 rounded-none text-[9px] font-mono font-bold uppercase tracking-widest whitespace-nowrap">
-                  Depois (Sorriso Real)
-                </div>
+              {/* AFTER IMAGE (Top Layer - visible on the right, clipped on the left) */}
+              <img 
+                src={siteContent?.afterImageUrl || ""} 
+                alt="Sorriso Finalizado (Depois)" 
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                style={{ 
+                  clipPath: `polygon(${sliderPosition}% 0, 100% 0, 100% 100%, ${sliderPosition}% 100%)` 
+                }}
+              />
+              <div className="absolute bottom-4 right-4 bg-green-deep/90 border border-white/20 text-white px-3 py-1.5 rounded-none text-[9px] font-mono font-bold uppercase tracking-widest whitespace-nowrap z-10">
+                Depois (Sorriso Real)
               </div>
 
               {/* DRAG BAR DIVIDER */}
               <div 
-                className="absolute inset-y-0 w-1 bg-white cursor-ew-resize flex items-center justify-center pointer-events-none"
+                className="absolute inset-y-0 w-1 bg-white cursor-ew-resize flex items-center justify-center pointer-events-none z-20"
                 style={{ left: `${sliderPosition}%` }}
               >
                 <div className="w-8 h-8 rounded-none bg-white shadow-xl border border-neutral-300 flex items-center justify-center text-green-deep text-xs font-bold font-mono">
