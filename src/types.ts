@@ -110,6 +110,8 @@ export interface Review {
   date: string;
   avatarUrl: string;
   treatment?: string;
+  approved?: boolean;
+  source?: 'google' | 'manual';
 }
 
 export interface FinanceRecord {

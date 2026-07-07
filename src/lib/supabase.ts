@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Lead, Appointment } from '../types';
+import { Lead, Appointment, Review } from '../types';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -7,7 +7,12 @@ let supabaseInstance: SupabaseClient | null = null;
 export const getSupabaseConfig = () => {
   const url = (import.meta as any).env.VITE_SUPABASE_URL || '';
   const key = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
-  return { url, key, isConfigured: !!(url && key) };
+  const isPlaceholder = 
+    !url || 
+    !key || 
+    url.includes('your-project') || 
+    key.includes('your-anon-key');
+  return { url, key, isConfigured: !isPlaceholder };
 };
 
 // Lazy initialization of Supabase Client to avoid crashing if env variables are empty
@@ -24,7 +29,7 @@ export const getSupabaseClient = (): SupabaseClient | null => {
     supabaseInstance = createClient(url, key);
     return supabaseInstance;
   } catch (error) {
-    console.error('Falha ao inicializar o cliente do Supabase:', error);
+    console.warn('Falha ao inicializar o cliente do Supabase:', error);
     return null;
   }
 };
@@ -126,14 +131,95 @@ export async function sendAppointmentToSupabase(app: Appointment): Promise<{ suc
 }
 
 /**
- * Syncs any pending local leads or appointments when the connection becomes active
+ * Inserts or updates a Google Review in Supabase.
  */
-export async function syncPendingData(): Promise<{ leadsSynced: number; appointmentsSynced: number }> {
+export async function sendReviewToSupabase(review: Review): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient();
-  if (!client) return { leadsSynced: 0, appointmentsSynced: 0 };
+
+  if (!client) {
+    console.warn('⚠️ Supabase não configurado. Salvando avaliação localmente:', review);
+    saveToLocalBackup('reviews', review);
+    return { success: false, error: 'Supabase não configurado. Dados salvos localmente.' };
+  }
+
+  try {
+    const { error } = await client
+      .from('google_reviews')
+      .upsert({
+        id: review.id,
+        author: review.author,
+        rating: review.rating,
+        text: review.text,
+        date: review.date,
+        avatar_url: review.avatarUrl,
+        treatment: review.treatment || '',
+        approved: review.approved !== undefined ? review.approved : false,
+        source: review.source || 'google',
+        created_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('Erro ao enviar avaliação para o Supabase:', error);
+      saveToLocalBackup('reviews_pending', review);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ Avaliação enviada com sucesso para o Supabase!', review.id);
+    return { success: true };
+  } catch (err: any) {
+    console.error('Erro de conexão da avaliação ao Supabase:', err);
+    saveToLocalBackup('reviews_pending', review);
+    return { success: false, error: err.message || 'Erro de rede ou conexão.' };
+  }
+}
+
+/**
+ * Fetches approved/active Google reviews from Supabase.
+ */
+export async function fetchReviewsFromSupabase(): Promise<Review[]> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await client
+      .from('google_reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Erro ao buscar avaliações do Supabase:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      author: row.author,
+      rating: row.rating,
+      text: row.text,
+      date: row.date,
+      avatarUrl: row.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
+      treatment: row.treatment,
+      approved: row.approved,
+      source: row.source || 'google'
+    }));
+  } catch (err) {
+    console.warn('Erro de conexão ao buscar avaliações:', err);
+    return [];
+  }
+}
+
+/**
+ * Syncs any pending local leads, appointments or reviews when the connection becomes active
+ */
+export async function syncPendingData(): Promise<{ leadsSynced: number; appointmentsSynced: number; reviewsSynced: number }> {
+  const client = getSupabaseClient();
+  if (!client) return { leadsSynced: 0, appointmentsSynced: 0, reviewsSynced: 0 };
 
   let leadsSynced = 0;
   let appointmentsSynced = 0;
+  let reviewsSynced = 0;
 
   // Sync leads
   const pendingLeads = getLocalBackup('leads_pending');
@@ -155,7 +241,17 @@ export async function syncPendingData(): Promise<{ leadsSynced: number; appointm
     }
   }
 
-  return { leadsSynced, appointmentsSynced };
+  // Sync reviews
+  const pendingReviews = getLocalBackup('reviews_pending');
+  for (const rev of pendingReviews) {
+    const res = await sendReviewToSupabase(rev);
+    if (res.success) {
+      removeFromLocalBackup('reviews_pending', rev.id);
+      reviewsSynced++;
+    }
+  }
+
+  return { leadsSynced, appointmentsSynced, reviewsSynced };
 }
 
 // Helper local backup functions
@@ -230,14 +326,32 @@ CREATE TABLE IF NOT EXISTS public.appointments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 3. Criação da tabela de Avaliações do Google (Google Reviews)
+CREATE TABLE IF NOT EXISTS public.google_reviews (
+  id TEXT PRIMARY KEY,
+  author TEXT NOT NULL,
+  rating INTEGER DEFAULT 5,
+  text TEXT,
+  date TEXT,
+  avatar_url TEXT,
+  treatment TEXT,
+  approved BOOLEAN DEFAULT FALSE,
+  source TEXT DEFAULT 'google',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Habilitar acesso público de escrita (Row Level Security ou permissão de inserção)
 -- Para propósitos de teste simples ou ambiente de desenvolvimento:
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.google_reviews ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Permitir inserções e atualizações públicas" ON public.leads
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Permitir inserções e atualizações públicas em agendamentos" ON public.appointments
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Permitir gerenciamento de avaliações" ON public.google_reviews
   FOR ALL USING (true) WITH CHECK (true);
 `;

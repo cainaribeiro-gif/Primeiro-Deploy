@@ -3,6 +3,8 @@ import { SiteContent } from './types';
 import heroImg from './assets/images/regenerated_image_1783059473581.jpg';
 // @ts-ignore
 import bioImg from './assets/images/regenerated_image_1783061703946.jpg';
+// @ts-ignore
+import fachadaImg from './assets/images/regenerated_image_1783379379778.jpg';
 
 export const DEFAULT_SITE_CONTENT: SiteContent = {
   // Hero section
@@ -40,7 +42,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
       title: 'Fachada Premium',
       description: 'Elegância minimalista em preto fosco, letreiro 3D dourado e iluminação cênica sofisticada.',
       details: 'Uma entrada imponente projetada para refletir o nível de excelência dos tratamentos oferecidos. Com o letreiro em relevo dourado "Dra. Claudia França | Saúde & Estética" sob spots de iluminação quente, o design exterior une sofisticação urbana e o aconchego de uma clínica boutique, convidando você para uma experiência odontológica de padrão elevado.',
-      imageUrl: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=800'
+      imageUrl: fachadaImg
     },
     {
       id: 'recepcao',

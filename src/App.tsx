@@ -9,8 +9,8 @@ import LandingPage from './components/LandingPage';
 import PatientPortal from './components/PatientPortal';
 import AdminDashboard from './components/AdminDashboard';
 import RestrictedLoginPage from './components/RestrictedLoginPage';
-import { INITIAL_APPOINTMENTS, INITIAL_LEADS } from './mockData';
-import { Appointment, Lead, SiteContent } from './types';
+import { INITIAL_APPOINTMENTS, INITIAL_LEADS, INITIAL_REVIEWS } from './mockData';
+import { Appointment, Lead, SiteContent, Review } from './types';
 import { DEFAULT_SITE_CONTENT } from './defaultSiteContent';
 import { sendLeadToSupabase } from './lib/supabase';
 
@@ -18,13 +18,55 @@ export default function App() {
   // Global shared state for real-time interaction simulation
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const saved = localStorage.getItem('google_reviews_cache');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing google_reviews_cache', e);
+      }
+    }
+    // Default to initial reviews, pre-approved
+    return INITIAL_REVIEWS.map(r => ({ ...r, approved: true, source: 'google' }));
+  });
+
+  // Keep localStorage in sync with reviews
+  useEffect(() => {
+    localStorage.setItem('google_reviews_cache', JSON.stringify(reviews));
+  }, [reviews]);
+
+  // Load reviews from Supabase if available
+  useEffect(() => {
+    const loadSupabaseReviews = async () => {
+      try {
+        const { fetchReviewsFromSupabase } = await import('./lib/supabase');
+        const dbReviews = await fetchReviewsFromSupabase();
+        if (dbReviews && dbReviews.length > 0) {
+          setReviews(dbReviews);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar avaliações do Supabase:', err);
+      }
+    };
+    loadSupabaseReviews();
+  }, []);
 
   // CMS Content State
   const [siteContent, setSiteContent] = useState<SiteContent>(() => {
     const saved = localStorage.getItem('site_content');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed.clinicSpaces) {
+          parsed.clinicSpaces = parsed.clinicSpaces.map((space: any) => {
+            if (space.id === 'fachada' && space.imageUrl === 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=800') {
+              space.imageUrl = DEFAULT_SITE_CONTENT.clinicSpaces[0].imageUrl;
+            }
+            return space;
+          });
+        }
+        return parsed;
       } catch (e) {
         console.error('Error parsing site_content', e);
       }
@@ -113,6 +155,7 @@ export default function App() {
           onSaveSiteContent={handleSaveSiteContent}
           isEditMode={isEditMode}
           setIsEditMode={setIsEditMode}
+          reviews={reviews}
         />
       )}
 
@@ -130,6 +173,8 @@ export default function App() {
           setLeads={setLeads}
           appointments={appointments}
           setAppointments={setAppointments}
+          reviews={reviews}
+          setReviews={setReviews}
         />
       )}
 

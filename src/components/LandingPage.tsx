@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Calendar, Heart, Award, MapPin, Phone, MessageSquare, ArrowRight, Star, 
-  ChevronRight, ArrowLeftRight, Clock, HelpCircle, Check, BookOpen, User, ShieldCheck, Mail, Laptop, X, Menu,
+  ChevronRight, ChevronLeft, ArrowLeftRight, Clock, HelpCircle, Check, BookOpen, User, ShieldCheck, Mail, Laptop, X, Menu,
   Paperclip, UploadCloud, AlertCircle, Edit, Settings, RotateCcw, Save
 } from 'lucide-react';
 import { Service, BlogPost, Review, SiteContent } from '../types';
@@ -16,6 +16,9 @@ import { BrandLogoHorizontal, BrandLogoVertical, BrandSubmarca, ToothIcon } from
 import EditableText from './EditableText';
 import EditableImage from './EditableImage';
 import { DEFAULT_SITE_CONTENT } from '../defaultSiteContent';
+
+// @ts-ignore
+import fachadaImg from '../assets/images/regenerated_image_1783379379778.jpg';
 
 interface LandingPageProps {
   onLoginClick?: (role: 'patient' | 'admin') => void;
@@ -33,6 +36,7 @@ interface LandingPageProps {
   onSaveSiteContent: (newContent: SiteContent) => void;
   isEditMode: boolean;
   setIsEditMode: (active: boolean) => void;
+  reviews?: Review[];
 }
 
 const CLINIC_SPACES = [
@@ -41,7 +45,7 @@ const CLINIC_SPACES = [
     title: 'Fachada Premium',
     description: 'Elegância minimalista em preto fosco, letreiro 3D dourado e iluminação cênica sofisticada.',
     details: 'Uma entrada imponente projetada para refletir o nível de excelência dos tratamentos oferecidos. Com o letreiro em relevo dourado "Dra. Claudia França | Saúde & Estética" sob spots de iluminação quente, o design exterior une sofisticação urbana e o aconchego de uma clínica boutique, convidando você para uma experiência odontológica de padrão elevado.',
-    imageUrl: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=800'
+    imageUrl: fachadaImg
   },
   {
     id: 'recepcao',
@@ -72,7 +76,8 @@ export default function LandingPage({
   siteContent,
   onSaveSiteContent,
   isEditMode,
-  setIsEditMode
+  setIsEditMode,
+  reviews = []
 }: LandingPageProps) {
   // CMS helper functions
   const updateField = <K extends keyof SiteContent>(field: K, value: SiteContent[K]) => {
@@ -102,7 +107,40 @@ export default function LandingPage({
   // Services & Articles loaded from mock data
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<BlogPost | null>(null);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => {
+    const saved = localStorage.getItem('blog_posts_cache');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing blog_posts_cache', e);
+      }
+    }
+    return INITIAL_BLOG_POSTS;
+  });
+
+  // Listen for localstorage updates to refresh blogPosts state
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('blog_posts_cache');
+      if (saved) {
+        try {
+          setBlogPosts(JSON.parse(saved));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    // Also check on interval to sync without full reload inside same page
+    const interval = setInterval(handleStorageChange, 1000);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
   const [selectedClinicSpace, setSelectedClinicSpace] = useState<any | null>(null);
+  const [activeSpaceIndex, setActiveSpaceIndex] = useState(0);
   const [activeServiceCategory, setActiveServiceCategory] = useState<string>('todas');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
@@ -296,8 +334,8 @@ export default function LandingPage({
 
           {/* Desktop Links */}
           <nav className="hidden lg:flex items-center gap-6 xl:gap-8 text-[11px] font-bold tracking-[0.2em] uppercase text-neutral-600">
-            <a href="#sobre" className="hover:text-brand-wine transition-colors">Sobre</a>
             <a href="#clinica" className="hover:text-brand-wine transition-colors">Estrutura</a>
+            <a href="#sobre" className="hover:text-brand-wine transition-colors">Sobre</a>
             <a href="#servicos" className="hover:text-brand-wine transition-colors">Serviços</a>
             <a href="#resultados" className="hover:text-brand-wine transition-colors">Resultados</a>
             <a href="#depoimentos" className="hover:text-brand-wine transition-colors">Opiniões</a>
@@ -349,8 +387,8 @@ export default function LandingPage({
             >
               <div className="py-6 flex flex-col gap-6">
                 <nav className="flex flex-col gap-3 text-xs font-semibold tracking-widest uppercase text-neutral-600">
-                  <a href="#sobre" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-wine py-2 border-b border-neutral-100/60 transition-colors">Sobre</a>
                   <a href="#clinica" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-wine py-2 border-b border-neutral-100/60 transition-colors">Estrutura</a>
+                  <a href="#sobre" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-wine py-2 border-b border-neutral-100/60 transition-colors">Sobre</a>
                   <a href="#servicos" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-wine py-2 border-b border-neutral-100/60 transition-colors">Serviços</a>
                   <a href="#resultados" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-wine py-2 border-b border-neutral-100/60 transition-colors">Resultados</a>
                   <a href="#depoimentos" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-wine py-2 border-b border-neutral-100/60 transition-colors">Opiniões</a>
@@ -485,68 +523,6 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 3. Sobre a Dra. Claudia França */}
-      <section id="sobre" className="py-20 md:py-28 px-4 md:px-8 bg-white border-b border-neutral-200">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
-          {/* Doctor Portrait Image */}
-          <div className="lg:col-span-5 relative pr-4 pb-4">
-            <div className="w-full aspect-square md:aspect-[4/5] rounded-none overflow-hidden shadow-2xl border-[12px] border-neutral-100 bg-white">
-              <EditableImage 
-                src={siteContent?.bioImageUrl || ""} 
-                alt="Dra. Claudia França" 
-                onChange={(val) => updateField('bioImageUrl', val)}
-                isEditMode={isEditMode}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {/* Circular Submarca rotating seal overlapping portrait */}
-            <div className="absolute -bottom-6 -right-2 w-32 h-32 md:w-40 md:h-40 z-20 bg-white rounded-full p-2 shadow-2xl border border-neutral-200/50 flex items-center justify-center">
-              <BrandSubmarca className="w-full h-full" />
-            </div>
-            {/* CRO Overlay card */}
-            <div className="absolute top-6 right-6 bg-green-deep text-white px-4 py-2 rounded-none text-[10px] font-mono tracking-widest shadow-md uppercase font-semibold border border-white/10 z-10">
-              <EditableText id="bioCro" value={siteContent?.bioCro || ""} onChange={(val) => updateField('bioCro', val)} isEditMode={isEditMode} />
-            </div>
-          </div>
-
-          {/* Doctor Bio and Legacy Copy */}
-          <div className="lg:col-span-7 space-y-6">
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-deep block opacity-60">
-              <EditableText id="bioBadge" value={siteContent?.bioBadge || ""} onChange={(val) => updateField('bioBadge', val)} isEditMode={isEditMode} />
-            </span>
-            <EditableText id="bioTitle" value={siteContent?.bioTitle || ""} onChange={(val) => updateField('bioTitle', val)} isEditMode={isEditMode} as="h2" className="font-serif text-3xl md:text-4xl text-green-deep font-light uppercase tracking-wide block" />
-            
-            <EditableText id="bioText1" value={siteContent?.bioText1 || ""} onChange={(val) => updateField('bioText1', val)} isEditMode={isEditMode} as="p" className="text-sm text-taupe leading-relaxed font-light block" multiline />
-
-            <EditableText id="bioText2" value={siteContent?.bioText2 || ""} onChange={(val) => updateField('bioText2', val)} isEditMode={isEditMode} as="p" className="text-sm text-taupe leading-relaxed font-light block" multiline />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-neutral-200">
-              <div className="flex gap-4 items-start">
-                <div className="w-6 h-6 bg-gold-champagne flex items-center justify-center text-green-deep shrink-0 mt-0.5">
-                  <Check className="w-4 h-4" />
-                </div>
-                <div>
-                  <EditableText id="bioCardTitle" value={siteContent?.bioCardTitle || ""} onChange={(val) => updateField('bioCardTitle', val)} isEditMode={isEditMode} as="h4" className="text-xs font-bold text-green-deep uppercase tracking-wider block" />
-                  <EditableText id="bioCardText" value={siteContent?.bioCardText || ""} onChange={(val) => updateField('bioCardText', val)} isEditMode={isEditMode} as="p" className="text-[11px] text-taupe leading-relaxed font-light block" multiline />
-                </div>
-              </div>
-
-              <div className="flex gap-4 items-start">
-                <div className="w-6 h-6 bg-gold-champagne flex items-center justify-center text-green-deep shrink-0 mt-0.5">
-                  <Check className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-green-deep uppercase tracking-wider">Inovação e Tecnologia</h4>
-                  <p className="text-[11px] text-taupe leading-relaxed font-light">Uso de softwares e planejadores 3D para antecipar resultados estéticos faciais.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
       {/* Nossa Clínica (Virtual Gallery & Architectural Tour) */}
       <section id="clinica" className="py-20 md:py-28 px-4 md:px-8 bg-nude-warm/40 border-b border-neutral-200">
         <div className="max-w-7xl mx-auto space-y-12">
@@ -557,48 +533,96 @@ export default function LandingPage({
             <EditableText id="spacesSubtitle" value={siteContent?.spacesSubtitle || ""} onChange={(val) => updateField('spacesSubtitle', val)} isEditMode={isEditMode} as="p" className="text-xs text-taupe leading-relaxed font-light block" multiline />
           </div>
 
-          {/* Interactive Spaces Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {(siteContent?.clinicSpaces || CLINIC_SPACES).map((space) => (
-              <motion.div 
-                key={space.id}
-                whileHover={{ y: -6 }}
-                className="bg-white border border-neutral-200/80 flex flex-col group rounded-none overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300"
-              >
-                <div className="aspect-[4/3] w-full overflow-hidden relative">
-                  <EditableImage 
-                    src={space.imageUrl} 
-                    alt={space.title}
-                    onChange={(val) => updateClinicSpace(space.id, { imageUrl: val })}
-                    isEditMode={isEditMode}
-                    className="w-full h-full object-cover filter brightness-95 group-hover:scale-105 transition-all duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-neutral-900/60 via-transparent to-transparent opacity-80 pointer-events-none" />
-                  <span className="absolute bottom-4 left-4 bg-gold-champagne text-green-deep font-sans text-[8.5px] font-bold tracking-widest uppercase px-2.5 py-1">
-                    Exclusivo
-                  </span>
-                </div>
-                
-                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="font-serif text-lg text-green-deep font-medium group-hover:text-brand-wine-light transition-colors block">
-                      <EditableText id={space.id + 'title'} value={space.title} onChange={(val) => updateClinicSpace(space.id, { title: val })} isEditMode={isEditMode} as="span" />
-                    </h3>
-                    <p className="text-[11px] text-taupe leading-relaxed font-light block">
-                      <EditableText id={space.id + 'desc'} value={space.description} onChange={(val) => updateClinicSpace(space.id, { description: val })} isEditMode={isEditMode} as="span" multiline />
-                    </p>
+          {/* Sleek & Compact Carousel (Carrossel Mais Enxuto) */}
+          {(() => {
+            const spaces = siteContent?.clinicSpaces || CLINIC_SPACES;
+            const activeSpace = spaces[activeSpaceIndex] || spaces[0];
+            if (!activeSpace) return null;
+            return (
+              <div className="max-w-4xl mx-auto bg-white border border-neutral-200 shadow-xl overflow-hidden relative group rounded-none">
+                <div className="flex flex-col md:flex-row min-h-[350px]">
+                  {/* Image Container with Slider Navigation Overlay */}
+                  <div className="md:w-1/2 aspect-[4/3] md:aspect-auto md:h-auto min-h-[250px] relative overflow-hidden bg-neutral-900">
+                    <EditableImage 
+                      src={activeSpace.imageUrl} 
+                      alt={activeSpace.title}
+                      onChange={(val) => updateClinicSpace(activeSpace.id, { imageUrl: val })}
+                      isEditMode={isEditMode}
+                      className="w-full h-full object-cover transition-all duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/40 to-transparent pointer-events-none" />
+                    
+                    {/* Arrow Controls inside Image */}
+                    <div className="absolute inset-0 flex items-center justify-between px-4 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <button 
+                        onClick={() => setActiveSpaceIndex(prev => (prev === 0 ? spaces.length - 1 : prev - 1))}
+                        className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-neutral-200 text-neutral-800 hover:bg-white hover:text-brand-wine flex items-center justify-center transition-all cursor-pointer shadow-md"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => setActiveSpaceIndex(prev => (prev === spaces.length - 1 ? 0 : prev + 1))}
+                        className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-neutral-200 text-neutral-800 hover:bg-white hover:text-brand-wine flex items-center justify-center transition-all cursor-pointer shadow-md"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <span className="absolute bottom-4 left-4 bg-gold-champagne text-green-deep font-sans text-[8.5px] font-bold tracking-widest uppercase px-2.5 py-1">
+                      Espaço {activeSpaceIndex + 1} de {spaces.length}
+                    </span>
                   </div>
-                  
-                  <button 
-                    onClick={() => setSelectedClinicSpace(space)}
-                    className="flex items-center gap-1.5 text-[9px] font-bold tracking-widest uppercase text-brand-wine-light hover:text-green-deep transition-colors pt-2 border-t border-neutral-100 w-full text-left cursor-pointer"
-                  >
-                    Ver Detalhes do Espaço <span>➔</span>
-                  </button>
+
+                  {/* Text / Details Container */}
+                  <div className="md:w-1/2 p-6 md:p-10 flex flex-col justify-between space-y-6">
+                    <div className="space-y-4">
+                      <span className="text-[9px] font-bold tracking-[0.2em] uppercase text-brand-wine-light/80 block">Infraestrutura Exclusiva</span>
+                      <h3 className="font-serif text-xl md:text-2xl text-green-deep font-light uppercase tracking-wider block">
+                        <EditableText 
+                          id={activeSpace.id + 'title'} 
+                          value={activeSpace.title} 
+                          onChange={(val) => updateClinicSpace(activeSpace.id, { title: val })} 
+                          isEditMode={isEditMode} 
+                          as="span" 
+                        />
+                      </h3>
+                      <div className="h-0.5 w-10 bg-gold-champagne"></div>
+                      <p className="text-[11px] text-taupe leading-relaxed font-light min-h-[60px]">
+                        <EditableText 
+                          id={activeSpace.id + 'desc'} 
+                          value={activeSpace.description} 
+                          onChange={(val) => updateClinicSpace(activeSpace.id, { description: val })} 
+                          isEditMode={isEditMode} 
+                          as="span" 
+                          multiline 
+                        />
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-neutral-100 pt-4">
+                      <button 
+                        onClick={() => setSelectedClinicSpace(activeSpace)}
+                        className="flex items-center gap-1.5 text-[9px] font-bold tracking-widest uppercase text-brand-wine-light hover:text-green-deep transition-colors cursor-pointer"
+                      >
+                        Ver Detalhes do Espaço <span>➔</span>
+                      </button>
+
+                      {/* Indicator Dots */}
+                      <div className="flex gap-1.5">
+                        {spaces.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveSpaceIndex(idx)}
+                            className={`w-1.5 h-1.5 transition-all cursor-pointer ${idx === activeSpaceIndex ? 'bg-brand-wine w-4' : 'bg-neutral-300'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
+            );
+          })()}
         </div>
       </section>
 
@@ -706,6 +730,68 @@ export default function LandingPage({
         )}
       </AnimatePresence>
 
+      {/* 3. Sobre a Dra. Claudia França */}
+      <section id="sobre" className="py-20 md:py-28 px-4 md:px-8 bg-white border-b border-neutral-200">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Doctor Portrait Image */}
+          <div className="lg:col-span-5 relative pr-4 pb-4">
+            <div className="w-full aspect-square md:aspect-[4/5] rounded-none overflow-hidden shadow-2xl border-[12px] border-neutral-100 bg-white">
+              <EditableImage 
+                src={siteContent?.bioImageUrl || ""} 
+                alt="Dra. Claudia França" 
+                onChange={(val) => updateField('bioImageUrl', val)}
+                isEditMode={isEditMode}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            {/* Circular Submarca rotating seal overlapping portrait */}
+            <div className="absolute -bottom-6 -right-2 w-32 h-32 md:w-40 md:h-40 z-20 bg-white rounded-full p-2 shadow-2xl border border-neutral-200/50 flex items-center justify-center">
+              <BrandSubmarca className="w-full h-full" />
+            </div>
+            {/* CRO Overlay card */}
+            <div className="absolute top-6 right-6 bg-green-deep text-white px-4 py-2 rounded-none text-[10px] font-mono tracking-widest shadow-md uppercase font-semibold border border-white/10 z-10">
+              <EditableText id="bioCro" value={siteContent?.bioCro || ""} onChange={(val) => updateField('bioCro', val)} isEditMode={isEditMode} />
+            </div>
+          </div>
+
+          {/* Doctor Bio and Legacy Copy */}
+          <div className="lg:col-span-7 space-y-6">
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-deep block opacity-60">
+              <EditableText id="bioBadge" value={siteContent?.bioBadge || ""} onChange={(val) => updateField('bioBadge', val)} isEditMode={isEditMode} />
+            </span>
+            <EditableText id="bioTitle" value={siteContent?.bioTitle || ""} onChange={(val) => updateField('bioTitle', val)} isEditMode={isEditMode} as="h2" className="font-serif text-3xl md:text-4xl text-green-deep font-light uppercase tracking-wide block" />
+            
+            <EditableText id="bioText1" value={siteContent?.bioText1 || ""} onChange={(val) => updateField('bioText1', val)} isEditMode={isEditMode} as="p" className="text-sm text-taupe leading-relaxed font-light block" multiline />
+
+            <EditableText id="bioText2" value={siteContent?.bioText2 || ""} onChange={(val) => updateField('bioText2', val)} isEditMode={isEditMode} as="p" className="text-sm text-taupe leading-relaxed font-light block" multiline />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-neutral-200">
+              <div className="flex gap-4 items-start">
+                <div className="w-6 h-6 bg-gold-champagne flex items-center justify-center text-green-deep shrink-0 mt-0.5">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div>
+                  <EditableText id="bioCardTitle" value={siteContent?.bioCardTitle || ""} onChange={(val) => updateField('bioCardTitle', val)} isEditMode={isEditMode} as="h4" className="text-xs font-bold text-green-deep uppercase tracking-wider block" />
+                  <EditableText id="bioCardText" value={siteContent?.bioCardText || ""} onChange={(val) => updateField('bioCardText', val)} isEditMode={isEditMode} as="p" className="text-[11px] text-taupe leading-relaxed font-light block" multiline />
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-6 h-6 bg-gold-champagne flex items-center justify-center text-green-deep shrink-0 mt-0.5">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-green-deep uppercase tracking-wider">Inovação e Tecnologia</h4>
+                  <p className="text-[11px] text-taupe leading-relaxed font-light">Uso de softwares e planejadores 3D para antecipar resultados estéticos faciais.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       {/* 4. Especialidades / Serviços (With Interactive Details) */}
       <section id="servicos" className="py-20 md:py-28 px-4 md:px-8 bg-white border-b border-neutral-200">
         <div className="max-w-7xl mx-auto space-y-12">
@@ -719,12 +805,12 @@ export default function LandingPage({
           {/* Category Filter Tabs */}
           <div className="flex flex-wrap items-center justify-center gap-2 border-b border-neutral-100 pb-8 max-w-4xl mx-auto">
             {[
-              { id: 'todas', label: 'Todas as Áreas' },
-              { id: 'harmonizacao', label: 'Harmonização Orofacial' },
-              { id: 'implantodontia', label: 'Implantodontia' },
-              { id: 'ortodontia', label: 'Ortodontia Digital' },
-              { id: 'clinica_geral', label: 'Clínica Geral' },
-              { id: 'estetica_reabilitacao', label: 'Estética & Reabilitação' }
+              { id: 'todas', label: 'Todas as Especialidades' },
+              { id: 'transformacao_sorriso', label: 'Transformação do Sorriso' },
+              { id: 'implantes_dentarios', label: 'Implantes Dentários' },
+              { id: 'reabilitacao_oral', label: 'Reabilitação Oral' },
+              { id: 'saude_bucal', label: 'Saúde Bucal' },
+              { id: 'tratamentos_personalizados', label: 'Tratamentos Personalizados' }
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -745,16 +831,13 @@ export default function LandingPage({
             {INITIAL_SERVICES
               .filter(srv => {
                 if (activeServiceCategory === 'todas') return true;
-                if (activeServiceCategory === 'estetica_reabilitacao') {
-                  return srv.category === 'estetica' || srv.category === 'reabilitacao';
-                }
                 return srv.category === activeServiceCategory;
               })
               .map((srv, index) => (
               <div 
                 key={srv.id}
                 onClick={() => setSelectedService(srv)}
-                className="bg-brand-off-white p-8 border-b lg:border-b-0 lg:border-r last:border-r-0 border-neutral-200 hover:bg-brand-nude/40 transition-all duration-300 cursor-pointer flex flex-col justify-between group rounded-none relative overflow-hidden"
+                className="bg-brand-off-white p-8 border-b border-r last:border-r-0 border-neutral-200 hover:bg-brand-nude/40 transition-all duration-300 cursor-pointer flex flex-col justify-between group rounded-none relative overflow-hidden"
               >
                 {/* Visual hover border indicator */}
                 <div className="absolute top-0 left-0 w-full h-[3px] bg-brand-wine scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
@@ -765,9 +848,10 @@ export default function LandingPage({
                   </span>
                   <div className="w-12 h-12 rounded-none bg-brand-dourado-acetinado/10 border border-brand-dourado-acetinado/25 flex items-center justify-center text-brand-dourado-acetinado group-hover:bg-brand-wine group-hover:text-brand-gold group-hover:border-brand-wine transition-all duration-300">
                     {/* Render different icon depending on treatment group */}
-                    {srv.id.includes('harmonizacao') ? <Sparkles className="w-5 h-5 stroke-[1.25]" /> :
-                     srv.id.includes('implante') ? <Award className="w-5 h-5 stroke-[1.25]" /> :
-                     srv.id.includes('ortodontia') ? <ArrowLeftRight className="w-5 h-5 stroke-[1.25]" /> : <Heart className="w-5 h-5 stroke-[1.25]" />}
+                    {srv.category === 'transformacao_sorriso' ? <Sparkles className="w-5 h-5 stroke-[1.25]" /> :
+                     srv.category === 'implantes_dentarios' ? <Award className="w-5 h-5 stroke-[1.25]" /> :
+                     srv.category === 'reabilitacao_oral' ? <ArrowLeftRight className="w-5 h-5 stroke-[1.25]" /> :
+                     srv.category === 'saude_bucal' ? <Heart className="w-5 h-5 stroke-[1.25]" /> : <Sparkles className="w-5 h-5 stroke-[1.25]" />}
                   </div>
                   <div>
                     <h3 className="font-serif font-light tracking-widest text-brand-wine text-sm mb-2 uppercase group-hover:text-brand-wine-dark transition-colors">{srv.name}</h3>
@@ -1038,55 +1122,86 @@ export default function LandingPage({
       <section id="depoimentos" className="py-20 md:py-28 px-4 md:px-8 bg-nude-warm/20 border-b border-neutral-200">
         <div className="max-w-7xl mx-auto space-y-12">
           
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div className="space-y-3 max-w-lg">
-              <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-deep block opacity-60">Depoimentos Verificados</span>
-              <h2 className="font-serif text-3xl md:text-4xl text-green-deep font-light uppercase tracking-wide">Opiniões de Pacientes</h2>
-              <p className="text-xs text-taupe leading-relaxed font-light">Nossa excelência é traduzida no carinho e satisfação de quem confiou o sorriso e a autoimagem à Dra. Claudia.</p>
-            </div>
+          {(() => {
+            const activeReviews = reviews.length > 0 ? reviews.filter(r => r.approved !== false) : INITIAL_REVIEWS;
+            const avgRating = activeReviews.length > 0
+              ? (activeReviews.reduce((sum, r) => sum + r.rating, 0) / activeReviews.length).toFixed(1)
+              : "5.0";
+            const totalCount = activeReviews.length + 118; // base realistic offset
 
-            {/* Google Rating Overview box */}
-            <div className="bg-white p-5 rounded-none border border-neutral-200 flex items-center gap-4 shrink-0 shadow-md">
-              <div className="text-center border-r border-neutral-200 pr-4">
-                <span className="text-3xl font-bold font-serif text-green-deep block">5.0</span>
-                <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Nota no Google</span>
-              </div>
-              <div>
-                <div className="flex gap-1 text-amber-400">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
-                </div>
-                <p className="text-xs font-bold text-neutral-800 mt-1">124 avaliações físicas reais</p>
-                <p className="text-[10px] text-neutral-400 font-semibold tracking-wider uppercase">Excelente em São Paulo, SP</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Grid of Reviews */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {INITIAL_REVIEWS.map((rev) => (
-              <div key={rev.id} className="bg-white p-6 rounded-none border border-neutral-200 shadow-sm space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-none bg-gold-champagne/40 border border-green-deep/10 flex items-center justify-center font-bold text-xs text-green-deep font-sans uppercase">
-                    {rev.author.charAt(0)}
+            return (
+              <>
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                  <div className="space-y-3 max-w-lg">
+                    <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-deep block opacity-60">Avaliações do Google em Tempo Real</span>
+                    <h2 className="font-serif text-3xl md:text-4xl text-green-deep font-light uppercase tracking-wide">Opiniões de Pacientes</h2>
+                    <p className="text-xs text-taupe leading-relaxed font-light">Nossa excelência é traduzida no carinho e satisfação de quem confiou o sorriso e a autoimagem à Dra. Claudia. Feed integrado e moderado diretamente da nossa página no Google.</p>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">{rev.author}</h4>
-                    <span className="text-[9px] text-taupe bg-neutral-100 px-2 py-1 rounded-none font-semibold uppercase tracking-wider inline-block mt-1 border border-neutral-200/50">
-                      Tratamento: {rev.treatment}
-                    </span>
+
+                  {/* Google Rating Overview box */}
+                  <div className="bg-white p-5 rounded-none border border-neutral-200 flex items-center gap-4 shrink-0 shadow-md">
+                    <div className="text-center border-r border-neutral-200 pr-4">
+                      <span className="text-3xl font-bold font-serif text-green-deep block">{avgRating}</span>
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Nota no Google</span>
+                    </div>
+                    <div>
+                      <div className="flex gap-1 text-amber-400">
+                        {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+                      </div>
+                      <p className="text-xs font-bold text-neutral-800 mt-1">{totalCount} avaliações reais e verificadas</p>
+                      <p className="text-[10px] text-neutral-400 font-semibold tracking-wider uppercase">Excelente em São Paulo, SP</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex gap-0.5 text-amber-400">
-                  {[...Array(rev.rating)].map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}
-                </div>
+                {/* Grid of Reviews */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {activeReviews.map((rev) => (
+                    <div key={rev.id} className="bg-white p-6 rounded-none border border-neutral-200 shadow-sm space-y-4 flex flex-col justify-between min-h-[220px]">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-none bg-gold-champagne/40 border border-green-deep/10 flex items-center justify-center font-bold text-xs text-green-deep font-sans uppercase overflow-hidden">
+                              {rev.avatarUrl && rev.avatarUrl.startsWith('http') ? (
+                                <img src={rev.avatarUrl} alt={rev.author} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                rev.author.charAt(0)
+                              )}
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">{rev.author}</h4>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[8px] text-neutral-400 font-semibold uppercase">{rev.date}</span>
+                                {rev.source === 'google' && (
+                                  <span className="text-[7px] bg-[#4285F4]/10 text-[#4285F4] px-1 py-0.2 font-mono uppercase font-bold tracking-wider rounded">Google</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
 
-                <p className="text-xs text-taupe leading-relaxed italic font-light">
-                  "{rev.text}"
-                </p>
-              </div>
-            ))}
-          </div>
+                        <div className="flex gap-0.5 text-amber-400">
+                          {[...Array(rev.rating)].map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}
+                        </div>
+
+                        <p className="text-xs text-taupe leading-relaxed italic font-light">
+                          "{rev.text}"
+                        </p>
+                      </div>
+
+                      {rev.treatment && (
+                        <div className="pt-2 border-t border-neutral-100">
+                          <span className="text-[9px] text-taupe bg-neutral-100 px-2 py-1 rounded-none font-semibold uppercase tracking-wider inline-block border border-neutral-200/50">
+                            Tratamento: {rev.treatment}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
 
         </div>
       </section>
@@ -1102,7 +1217,7 @@ export default function LandingPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {INITIAL_BLOG_POSTS.map((post) => (
+            {blogPosts.map((post) => (
               <div 
                 key={post.id}
                 onClick={() => setSelectedArticle(post)}

@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, Users, Calendar as CalendarIcon, DollarSign, Settings2, Target, Eye, 
   TrendingUp, ArrowRight, UserPlus, FileText, Search, Plus, Trash2, Edit2, Check,
   X, Filter, CalendarDays, Clock, HelpCircle, Briefcase, ChevronRight, Tag, Share2,
-  Paperclip, MessageSquare, Sparkles, Database
+  Paperclip, MessageSquare, Sparkles, Database, Star, BookOpen
 } from 'lucide-react';
-import { getSupabaseConfig, SUPABASE_SQL_SCHEMA, syncPendingData, sendLeadToSupabase, sendAppointmentToSupabase } from '../lib/supabase';
+import { getSupabaseConfig, SUPABASE_SQL_SCHEMA, syncPendingData, sendLeadToSupabase, sendAppointmentToSupabase, sendReviewToSupabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { ToothIcon } from './BrandLogo';
 import { 
@@ -27,6 +27,8 @@ interface AdminDashboardProps {
   setLeads?: React.Dispatch<React.SetStateAction<Lead[]>>;
   appointments?: Appointment[];
   setAppointments?: React.Dispatch<React.SetStateAction<Appointment[]>>;
+  reviews?: Review[];
+  setReviews?: React.Dispatch<React.SetStateAction<Review[]>>;
 }
 
 export default function AdminDashboard({ 
@@ -34,12 +36,17 @@ export default function AdminDashboard({
   leads: propLeads,
   setLeads: propSetLeads,
   appointments: propAppointments,
-  setAppointments: propSetAppointments
+  setAppointments: propSetAppointments,
+  reviews: propReviews,
+  setReviews: propSetReviews
 }: AdminDashboardProps) {
   // Global admin states initialized from our mockup data
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [localLeads, setLocalLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [localAppointments, setLocalAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
+  const [localReviews, setLocalReviews] = useState<Review[]>(() => {
+    return INITIAL_REVIEWS.map(r => ({ ...r, approved: true, source: 'google' }));
+  });
 
   const leads = propLeads !== undefined ? propLeads : localLeads;
   const setLeads = propSetLeads !== undefined ? propSetLeads : setLocalLeads;
@@ -47,15 +54,33 @@ export default function AdminDashboard({
   const appointments = propAppointments !== undefined ? propAppointments : localAppointments;
   const setAppointments = propSetAppointments !== undefined ? propSetAppointments : setLocalAppointments;
 
+  const reviews = propReviews !== undefined ? propReviews : localReviews;
+  const setReviews = propSetReviews !== undefined ? propSetReviews : setLocalReviews;
+
   const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>(INITIAL_FINANCE_RECORDS);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>(INITIAL_CAMPAIGNS);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(INITIAL_BLOG_POSTS);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => {
+    const saved = localStorage.getItem('blog_posts_cache');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing blog posts cache in admin', e);
+      }
+    }
+    return INITIAL_BLOG_POSTS;
+  });
+
+  // Persist blogPosts state to localStorage cache
+  useEffect(() => {
+    localStorage.setItem('blog_posts_cache', JSON.stringify(blogPosts));
+  }, [blogPosts]);
 
   // New selected lead state for full clinical triaging review
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   // Navigation state inside admin panel
-  const [activeTab, setActiveTab] = useState<'insights' | 'crm' | 'patients' | 'agenda' | 'finance' | 'website' | 'supabase'>('insights');
+  const [activeTab, setActiveTab] = useState<'insights' | 'crm' | 'patients' | 'agenda' | 'finance' | 'website' | 'supabase' | 'reviews'>('insights');
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState('');
@@ -74,6 +99,18 @@ export default function AdminDashboard({
   const [subHeadline, setSubHeadline] = useState('Excelência técnica, estética avançada e atendimento humanizado.');
   const [seoDescription, setSeoDescription] = useState('Dra. Claudia França - Especialista em Harmonização Orofacial, Invisalign, Implantes Dentários de carga imediata no Cambuci, São Paulo.');
 
+  // Google Reviews Tab States
+  const [placeId, setPlaceId] = useState(() => localStorage.getItem('google_place_id') || 'ChIJy99u_9VZzpQRrW4Y3_3vA9M');
+  const [googleApiKey, setGoogleApiKey] = useState(() => localStorage.getItem('google_api_key') || '');
+  const [reviewSearchText, setReviewSearchText] = useState('');
+  const [reviewTabFilter, setReviewTabFilter] = useState<'all' | 'approved' | 'pending'>('all');
+  const [simulatingFetch, setSimulatingFetch] = useState(false);
+  const [simAuthor, setSimAuthor] = useState('');
+  const [simRating, setSimRating] = useState<number>(5);
+  const [simText, setSimText] = useState('');
+  const [simTreatment, setSimTreatment] = useState('Invisalign');
+  const [showAddSimReview, setShowAddSimReview] = useState(false);
+
   // Form states for adding new elements
   const [newPatientName, setNewPatientName] = useState('');
   const [newPatientEmail, setNewPatientEmail] = useState('');
@@ -86,6 +123,202 @@ export default function AdminDashboard({
   const [newLeadService, setNewLeadService] = useState('Invisalign');
   const [newLeadValue, setNewLeadValue] = useState(5000);
   const [newLeadSource, setNewLeadSource] = useState('Instagram');
+
+  // Blog Management States
+  const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
+  const [editingBlogPost, setEditingBlogPost] = useState<BlogPost | null>(null);
+  const [blogFormTitle, setBlogFormTitle] = useState('');
+  const [blogFormExcerpt, setBlogFormExcerpt] = useState('');
+  const [blogFormContent, setBlogFormContent] = useState('');
+  const [blogFormCategory, setBlogFormCategory] = useState('');
+  const [blogFormReadTime, setBlogFormReadTime] = useState('');
+  const [blogFormImageUrl, setBlogFormImageUrl] = useState('');
+  const [blogFormAuthor, setBlogFormAuthor] = useState('Dra. Claudia França');
+
+  // Blog Management Helper Functions
+  const openNewBlogModal = () => {
+    setEditingBlogPost(null);
+    setBlogFormTitle('');
+    setBlogFormExcerpt('');
+    setBlogFormContent('');
+    setBlogFormCategory('Estética');
+    setBlogFormReadTime('4 min de leitura');
+    setBlogFormImageUrl('');
+    setBlogFormAuthor('Dra. Claudia França');
+    setIsBlogModalOpen(true);
+  };
+
+  const openEditBlogModal = (post: BlogPost) => {
+    setEditingBlogPost(post);
+    setBlogFormTitle(post.title);
+    setBlogFormExcerpt(post.excerpt);
+    setBlogFormContent(post.content);
+    setBlogFormCategory(post.category);
+    setBlogFormReadTime(post.readTime);
+    setBlogFormImageUrl(post.imageUrl);
+    setBlogFormAuthor(post.author || 'Dra. Claudia França');
+    setIsBlogModalOpen(true);
+  };
+
+  const handleSaveBlogPost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blogFormTitle) return;
+
+    if (editingBlogPost) {
+      // Editing existing blog post
+      setBlogPosts(prev => prev.map(post => {
+        if (post.id === editingBlogPost.id) {
+          return {
+            ...post,
+            title: blogFormTitle,
+            excerpt: blogFormExcerpt,
+            content: blogFormContent,
+            category: blogFormCategory,
+            readTime: blogFormReadTime,
+            imageUrl: blogFormImageUrl,
+            author: blogFormAuthor,
+            slug: blogFormTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-'),
+            tags: post.tags || [blogFormCategory, 'Odontologia', 'Saúde']
+          };
+        }
+        return post;
+      }));
+    } else {
+      // Creating new blog post
+      const newPost: BlogPost = {
+        id: 'blog-' + Date.now(),
+        title: blogFormTitle,
+        excerpt: blogFormExcerpt,
+        content: blogFormContent,
+        category: blogFormCategory,
+        date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
+        readTime: blogFormReadTime,
+        imageUrl: blogFormImageUrl || 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&q=80&w=400',
+        author: blogFormAuthor,
+        slug: blogFormTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-'),
+        tags: [blogFormCategory, 'Odontologia', 'Saúde']
+      };
+      setBlogPosts(prev => [newPost, ...prev]);
+    }
+
+    setIsBlogModalOpen(false);
+    setEditingBlogPost(null);
+  };
+
+  const handleDeleteBlogPost = (postId: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta postagem do blog?')) {
+      setBlogPosts(prev => prev.filter(post => post.id !== postId));
+    }
+  };
+
+  // Google Reviews management handlers
+  const handleToggleReviewApproval = (reviewId: string) => {
+    setReviews(prev => prev.map(rev => {
+      if (rev.id === reviewId) {
+        const updated = { ...rev, approved: !rev.approved };
+        // Sync with Supabase asynchronously in background
+        sendReviewToSupabase(updated).catch(err => {
+          console.error('Falha de sincronização Supabase para avaliações:', err);
+        });
+        return updated;
+      }
+      return rev;
+    }));
+  };
+
+  const handleDeleteReview = (reviewId: string) => {
+    if (confirm('Tem certeza de que deseja remover esta avaliação? Ela deixará de constar no site.')) {
+      setReviews(prev => prev.filter(rev => rev.id !== reviewId));
+    }
+  };
+
+  const handleSimulateGoogleFetch = () => {
+    setSimulatingFetch(true);
+    
+    // Simulating API loading latency
+    setTimeout(() => {
+      setSimulatingFetch(false);
+      
+      const simulatedReviews: Review[] = [
+        {
+          id: `goog-sim-${Date.now()}-1`,
+          author: 'Renata Albuquerque Silveira',
+          rating: 5,
+          text: 'Fiz harmonização orofacial com a Dra. Claudia e o resultado ficou super natural. Ela é extremamente detalhista, explica cada etapa e nos deixa super segura. A clínica é linda e acolhedora!',
+          date: 'Há 1 dia',
+          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
+          treatment: 'Harmonização Orofacial',
+          approved: false, // Must be approved by dentist!
+          source: 'google'
+        },
+        {
+          id: `goog-sim-${Date.now()}-2`,
+          author: 'Thiago Castelli',
+          rating: 4,
+          text: 'Excelente infraestrutura e atendimento de ponta. Fui para uma limpeza e acabei fazendo clareamento. A doutora é muito atenciosa. Recomendo!',
+          date: 'Há 3 dias',
+          avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
+          treatment: 'Clareamento Dental',
+          approved: false, // Must be approved by dentist!
+          source: 'google'
+        }
+      ];
+
+      setReviews(prev => {
+        // Prevent adding duplicate simulation items
+        const filteredSimulated = simulatedReviews.filter(
+          sim => !prev.some(p => p.author === sim.author)
+        );
+        
+        if (filteredSimulated.length === 0) {
+          alert('Todas as novas avaliações do Google já foram sincronizadas e estão na fila de moderação!');
+          return prev;
+        }
+
+        // Add them to the list (they start as unapproved)
+        const updated = [...filteredSimulated, ...prev];
+        
+        // Sync them to Supabase as unapproved
+        filteredSimulated.forEach(rev => {
+          sendReviewToSupabase(rev).catch(err => console.error(err));
+        });
+
+        alert(`Encontramos ${filteredSimulated.length} novas avaliações pendentes na página da clínica no Google! Elas foram adicionadas ao painel para sua aprovação.`);
+        return updated;
+      });
+    }, 1500);
+  };
+
+  const handleSimulateUserPost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!simAuthor.trim() || !simText.trim()) {
+      alert('Por favor, preencha o nome do autor e o texto da avaliação.');
+      return;
+    }
+
+    const newSim: Review = {
+      id: `goog-user-${Date.now()}`,
+      author: simAuthor,
+      rating: simRating,
+      text: simText,
+      date: 'Há alguns segundos',
+      avatarUrl: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 500000)}?auto=format&fit=crop&q=80&w=150`,
+      treatment: simTreatment || undefined,
+      approved: false, // Must be approved by dentist!
+      source: 'google'
+    };
+
+    setReviews(prev => [newSim, ...prev]);
+    sendReviewToSupabase(newSim).catch(err => console.error(err));
+    
+    // Clear form
+    setSimAuthor('');
+    setSimText('');
+    setSimTreatment('Invisalign');
+    setShowAddSimReview(false);
+
+    alert('Nova avaliação postada no Google simulada com sucesso! Ela está marcada como pendente no painel de moderação para sua aprovação.');
+  };
 
   // Interactive CRM drag/move handler
   const handleMoveLead = (leadId: string, targetStage: CRMStage) => {
@@ -362,6 +595,19 @@ export default function AdminDashboard({
             >
               <Settings2 className="w-4 h-4" />
               Gestão do Site & SEO
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('reviews')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${activeTab === 'reviews' ? 'bg-gold-champagne text-neutral-950 shadow-md font-bold' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'}`}
+            >
+              <Star className="w-4 h-4 fill-current text-amber-400" />
+              Avaliações do Google
+              {reviews.filter(r => r.approved === false).length > 0 && (
+                <span className="ml-auto bg-amber-500 text-neutral-950 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                  {reviews.filter(r => r.approved === false).length}
+                </span>
+              )}
             </button>
 
             <button 
@@ -1194,6 +1440,87 @@ export default function AdminDashboard({
                 </div>
               </div>
             </div>
+
+            {/* Blog Post Management Panel */}
+            <div className="bg-neutral-950 p-6 rounded-2xl border border-neutral-800 space-y-4 mt-6">
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+                <div>
+                  <h4 className="text-sm font-semibold uppercase tracking-wider text-neutral-300 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-gold-champagne" />
+                    Gerenciador de Artigos do Blog
+                  </h4>
+                  <p className="text-[10px] text-neutral-400">Publique conteúdos ricos de orientações odontológicas, tratamentos e dicas que aumentam sua relevância orgânica (SEO).</p>
+                </div>
+                <button 
+                  onClick={openNewBlogModal}
+                  className="bg-gold-champagne text-neutral-950 font-bold px-3.5 py-1.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1.5 hover:bg-gold-champagne/90 transition-all cursor-pointer shadow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Novo Artigo
+                </button>
+              </div>
+
+              {blogPosts.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500 text-xs">
+                  Nenhum artigo cadastrado. Clique em "Novo Artigo" para criar a primeira publicação!
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-neutral-900 text-neutral-400 text-[10px] uppercase font-mono border-b border-neutral-800">
+                      <tr>
+                        <th className="py-2.5 px-3 w-16">Imagem</th>
+                        <th className="py-2.5 px-3">Título do Artigo</th>
+                        <th className="py-2.5 px-3">Categoria</th>
+                        <th className="py-2.5 px-3">Autor</th>
+                        <th className="py-2.5 px-3">Data</th>
+                        <th className="py-2.5 px-3 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-800">
+                      {blogPosts.map((post) => (
+                        <tr key={post.id} className="hover:bg-neutral-900/40">
+                          <td className="py-2.5 px-3">
+                            <img 
+                              src={post.imageUrl || "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&q=80&w=400"} 
+                              alt={post.title} 
+                              className="w-10 h-7 object-cover rounded border border-neutral-800"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-neutral-200">
+                            <div>
+                              <div className="line-clamp-1">{post.title}</div>
+                              <div className="text-[10px] text-neutral-500 font-normal line-clamp-1 mt-0.5">{post.excerpt}</div>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700/60 text-[9px] font-mono text-gold-champagne uppercase">
+                              {post.category}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-400 font-mono text-[10px]">{post.author}</td>
+                          <td className="py-2.5 px-3 text-neutral-400 font-mono text-[10px]">{post.date}</td>
+                          <td className="py-2.5 px-3 text-right space-x-2">
+                            <button 
+                              onClick={() => openEditBlogModal(post)}
+                              className="text-gold-champagne hover:text-white transition-colors cursor-pointer text-[10px] uppercase font-bold"
+                            >
+                              Editar
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteBlogPost(post.id)}
+                              className="text-red-400 hover:text-red-300 transition-colors cursor-pointer text-[10px] uppercase font-bold"
+                            >
+                              Excluir
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1343,6 +1670,262 @@ export default function AdminDashboard({
                     <li>Pronto! As tabelas estarão prontas e devidamente estruturadas com Row-Level Security (RLS) habilitada.</li>
                   </ul>
                 </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 8: GOOGLE REVIEWS MODERATION PANEL */}
+        {activeTab === 'reviews' && (
+          <div className="space-y-6 text-xs">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+              <div>
+                <h1 className="font-serif text-xl text-brand-gold flex items-center gap-2">
+                  <Star className="w-6 h-6 fill-current text-amber-400" />
+                  Integração & Moderação de Avaliações do Google
+                </h1>
+                <p className="text-xs text-neutral-400">
+                  Acompanhe e filtre avaliações enviadas à clínica "Clínica Odontologia Dra. Claudia França". Somente as aprovadas aparecem no seu site.
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => setShowAddSimReview(true)}
+                  className="bg-neutral-800 hover:bg-neutral-750 text-neutral-200 hover:text-white border border-neutral-700 px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 font-semibold transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-amber-400" />
+                  Simular Nova Postagem
+                </button>
+                <button
+                  onClick={handleSimulateGoogleFetch}
+                  disabled={simulatingFetch}
+                  className="bg-gold-champagne text-neutral-950 px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold hover:bg-brand-gold hover:text-neutral-950 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-neutral-950" />
+                  {simulatingFetch ? 'Buscando do Google...' : 'Sincronizar Feed Google'}
+                </button>
+              </div>
+            </div>
+
+            {/* Config & Metrics Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              
+              {/* API Integration Settings */}
+              <div className="lg:col-span-1 bg-neutral-950 p-5 rounded-2xl border border-neutral-800 space-y-4">
+                <div>
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-300 mb-2 border-b border-neutral-900 pb-1.5 flex items-center gap-1.5">
+                    <Settings2 className="w-4 h-4 text-brand-gold" />
+                    Parâmetros Google Business
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 leading-relaxed mb-3">
+                    Configurações do Google Place para o feed automático da Dra. Claudia França.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-neutral-400 font-medium">Place ID da Clínica:</label>
+                    <input 
+                      type="text" 
+                      value={placeId}
+                      onChange={(e) => {
+                        setPlaceId(e.target.value);
+                        localStorage.setItem('google_place_id', e.target.value);
+                      }}
+                      placeholder="Ex: ChIJy99u_9VZzpQRrW4Y3_3vA9M"
+                      className="w-full bg-neutral-900 border border-neutral-850 rounded-xl px-3 py-2 text-[11px] text-neutral-100 font-mono focus:border-amber-400 focus:outline-none"
+                    />
+                    <span className="text-[9px] text-neutral-500 italic block">Identificador oficial do Google Maps.</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-neutral-400 font-medium">Google API Key (Opcional):</label>
+                    <input 
+                      type="password" 
+                      value={googleApiKey}
+                      onChange={(e) => {
+                        setGoogleApiKey(e.target.value);
+                        localStorage.setItem('google_api_key', e.target.value);
+                      }}
+                      placeholder="AIzaSyA8xxxxxxxxxxxxxxxx"
+                      className="w-full bg-neutral-900 border border-neutral-850 rounded-xl px-3 py-2 text-[11px] text-neutral-100 font-mono focus:border-amber-400 focus:outline-none"
+                    />
+                    <span className="text-[9px] text-neutral-500 italic block">Para sincronização real com Places API.</span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <div className="bg-neutral-900 p-3.5 border border-neutral-850 rounded-xl space-y-1">
+                    <div className="text-[10px] font-bold text-neutral-300 uppercase">Status do Feed</div>
+                    <div className="text-[11px] text-[#3ECF8E] font-medium flex items-center gap-1.5 mt-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#3ECF8E] animate-pulse" />
+                      Sincronização Ativa
+                    </div>
+                    <p className="text-[10px] text-neutral-400 leading-relaxed mt-1">
+                      Conectado à página: <strong>Clínica Odontologia Dra. Claudia França</strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reviews Moderation Area */}
+              <div className="lg:col-span-3 bg-neutral-950 p-5 rounded-2xl border border-neutral-800 space-y-4">
+                
+                {/* Filter and search controls */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-900 pb-4">
+                  
+                  {/* Tabs filtering */}
+                  <div className="flex bg-neutral-900 p-1 rounded-xl border border-neutral-850 shrink-0">
+                    <button
+                      onClick={() => setReviewTabFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${reviewTabFilter === 'all' ? 'bg-gold-champagne text-neutral-950' : 'text-neutral-400 hover:text-white'}`}
+                    >
+                      Todas ({reviews.length})
+                    </button>
+                    <button
+                      onClick={() => setReviewTabFilter('approved')}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${reviewTabFilter === 'approved' ? 'bg-green-500/20 text-green-400' : 'text-neutral-400 hover:text-white'}`}
+                    >
+                      Aprovadas ({reviews.filter(r => r.approved !== false).length})
+                    </button>
+                    <button
+                      onClick={() => setReviewTabFilter('pending')}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer relative ${reviewTabFilter === 'pending' ? 'bg-amber-500/20 text-amber-400' : 'text-neutral-400 hover:text-white'}`}
+                    >
+                      Pendentes ({reviews.filter(r => r.approved === false).length})
+                      {reviews.filter(r => r.approved === false).length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Search box */}
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={reviewSearchText}
+                      onChange={(e) => setReviewSearchText(e.target.value)}
+                      placeholder="Pesquisar autor ou texto..."
+                      className="w-full bg-neutral-900 border border-neutral-850 rounded-xl pl-9 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-brand-gold"
+                    />
+                  </div>
+                </div>
+
+                {/* Reviews List */}
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {(() => {
+                    const filtered = reviews.filter(rev => {
+                      // Apply tab filter
+                      if (reviewTabFilter === 'approved' && rev.approved === false) return false;
+                      if (reviewTabFilter === 'pending' && rev.approved !== false) return false;
+                      
+                      // Apply search text
+                      if (reviewSearchText.trim()) {
+                        const s = reviewSearchText.toLowerCase();
+                        return (
+                          rev.author.toLowerCase().includes(s) || 
+                          (rev.text && rev.text.toLowerCase().includes(s)) ||
+                          (rev.treatment && rev.treatment.toLowerCase().includes(s))
+                        );
+                      }
+                      
+                      return true;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="text-center py-10 border border-dashed border-neutral-850 rounded-xl space-y-2">
+                          <Star className="w-8 h-8 text-neutral-600 mx-auto" />
+                          <p className="text-neutral-400 font-medium">Nenhuma avaliação encontrada neste filtro.</p>
+                          <p className="text-[10px] text-neutral-500">Adicione uma avaliação para simular ou clique em Sincronizar Feed Google.</p>
+                        </div>
+                      );
+                    }
+
+                    return filtered.map((rev) => (
+                      <div 
+                        key={rev.id} 
+                        className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row justify-between gap-4 ${rev.approved !== false ? 'bg-neutral-900/40 border-neutral-850' : 'bg-amber-950/10 border-amber-800/30'}`}
+                      >
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 overflow-hidden flex items-center justify-center font-bold text-xs text-amber-400 font-sans uppercase shrink-0">
+                              {rev.avatarUrl && rev.avatarUrl.startsWith('http') ? (
+                                <img src={rev.avatarUrl} alt={rev.author} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                rev.author.charAt(0)
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-xs font-bold text-white uppercase tracking-wide">{rev.author}</h4>
+                                <span className="text-[8px] text-neutral-500">{rev.date}</span>
+                                {rev.source === 'google' && (
+                                  <span className="text-[7px] bg-[#4285F4]/15 text-[#4285F4] px-1.5 py-0.5 rounded font-mono uppercase font-bold tracking-wider">Google</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex gap-0.5 text-amber-400">
+                                  {[...Array(rev.rating)].map((_, i) => <Star key={i} className="w-3 h-3 fill-current" />)}
+                                </div>
+                                {rev.treatment && (
+                                  <span className="text-[9px] text-amber-200/80 bg-amber-500/10 px-1.5 py-0.5 rounded font-medium">
+                                    Tratamento: {rev.treatment}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-neutral-300 leading-relaxed italic pl-1 border-l-2 border-neutral-800">
+                            "{rev.text}"
+                          </p>
+                        </div>
+
+                        {/* Approvals action panel */}
+                        <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+                          {rev.approved !== false ? (
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className="bg-green-500/10 text-green-400 border border-green-500/20 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Aprovada no Site
+                              </span>
+                              <button
+                                onClick={() => handleToggleReviewApproval(rev.id)}
+                                className="text-neutral-400 hover:text-white text-[10px] underline cursor-pointer"
+                              >
+                                Ocultar do Site
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Pendente Moderação
+                              </span>
+                              <button
+                                onClick={() => handleToggleReviewApproval(rev.id)}
+                                className="bg-green-500 hover:bg-green-600 text-neutral-950 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md"
+                              >
+                                Aprovar para o Site
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => handleDeleteReview(rev.id)}
+                            className="bg-neutral-900 hover:bg-red-950/50 hover:text-red-400 border border-neutral-800 hover:border-red-900/30 p-2 rounded-lg transition-all cursor-pointer"
+                            title="Remover Avaliação"
+                          >
+                            <Trash2 className="w-4 h-4 text-neutral-500 hover:text-red-400" />
+                          </button>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+
               </div>
 
             </div>
@@ -1710,6 +2293,224 @@ export default function AdminDashboard({
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* MODAL: SIMULATE NEW GOOGLE REVIEW POST */}
+      {showAddSimReview && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleSimulateUserPost} className="bg-neutral-950 w-full max-w-md rounded-3xl border border-neutral-800 p-6 space-y-4 text-xs text-neutral-200">
+            <div>
+              <h3 className="font-serif text-gold-champagne text-base border-b border-neutral-800 pb-2 flex items-center gap-2">
+                <Star className="w-5 h-5 fill-current text-amber-400" />
+                Simular Avaliação no Google Places
+              </h3>
+              <p className="text-[10px] text-neutral-400 mt-1">
+                Simule um paciente enviando uma nova avaliação à página da clínica no Google. Ela aparecerá como <strong>Pendente</strong> no painel.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-neutral-400 font-medium">Nome do Paciente:</label>
+              <input 
+                type="text" 
+                value={simAuthor}
+                onChange={(e) => setSimAuthor(e.target.value)}
+                placeholder="Ex: Mariana Vasconcellos Prado"
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-amber-400"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-neutral-400 font-medium">Nota (Estrelas):</label>
+                <select 
+                  value={simRating}
+                  onChange={(e) => setSimRating(Number(e.target.value))}
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-amber-400 font-bold"
+                >
+                  <option value={5}>⭐⭐⭐⭐⭐ (5 Estrelas)</option>
+                  <option value={4}>⭐⭐⭐⭐ (4 Estrelas)</option>
+                  <option value={3}>⭐⭐⭐ (3 Estrelas)</option>
+                  <option value={2}>⭐⭐ (2 Estrelas)</option>
+                  <option value={1}>⭐ (1 Estrela)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-neutral-400 font-medium">Tratamento Realizado:</label>
+                <select 
+                  value={simTreatment}
+                  onChange={(e) => setSimTreatment(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-amber-400"
+                >
+                  <option value="Invisalign">Invisalign</option>
+                  <option value="Harmonização Orofacial">Harmonização Orofacial</option>
+                  <option value="Implantes Dentários">Implantes Dentários</option>
+                  <option value="Clareamento Dental">Clareamento Dental</option>
+                  <option value="Facetas de Porcelana">Facetas de Porcelana</option>
+                  <option value="Estética Dental">Estética Dental</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-neutral-400 font-medium">Texto da Avaliação:</label>
+              <textarea 
+                rows={4}
+                value={simText}
+                onChange={(e) => setSimText(e.target.value)}
+                placeholder="Ex: Amei o atendimento da Dra. Claudia! O consultório é impecável e ela é muito gentil e competente."
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-amber-400 leading-relaxed"
+                required
+              />
+            </div>
+
+            <div className="flex gap-2.5 pt-2 border-t border-neutral-800">
+              <button 
+                type="button"
+                onClick={() => setShowAddSimReview(false)}
+                className="flex-1 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-400 font-semibold rounded-xl text-center uppercase tracking-wider cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit"
+                className="flex-1 py-2.5 bg-gold-champagne text-neutral-950 font-bold rounded-xl text-center uppercase tracking-wider hover:bg-white transition-colors cursor-pointer"
+              >
+                Enviar Avaliação
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL: CREATE OR EDIT BLOG POST */}
+      {isBlogModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleSaveBlogPost} className="bg-neutral-950 w-full max-w-xl rounded-3xl border border-neutral-800 p-6 space-y-4 text-xs text-neutral-200 overflow-y-auto max-h-[90vh]">
+            <div>
+              <h3 className="font-serif text-gold-champagne text-base border-b border-neutral-800 pb-2 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-gold-champagne" />
+                {editingBlogPost ? 'Editar Publicação do Blog' : 'Escrever Nova Publicação'}
+              </h3>
+              <p className="text-[10px] text-neutral-400 mt-1">
+                Adicione ou altere as postagens do blog público. Artigos bem estruturados melhoram a experiência do paciente e seu ranqueamento orgânico.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-neutral-400 font-medium">Título do Artigo:</label>
+              <input 
+                type="text" 
+                value={blogFormTitle}
+                onChange={(e) => setBlogFormTitle(e.target.value)}
+                placeholder="Ex: Como cuidar do clareamento dental em casa"
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-neutral-400 font-medium">Categoria:</label>
+                <select 
+                  value={blogFormCategory}
+                  onChange={(e) => setBlogFormCategory(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                >
+                  <option value="Estética">Estética</option>
+                  <option value="Implantes">Implantes</option>
+                  <option value="Saúde Bucal">Saúde Bucal</option>
+                  <option value="Reabilitação">Reabilitação</option>
+                  <option value="Ortodontia">Ortodontia</option>
+                  <option value="Dicas Gerais">Dicas Gerais</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-neutral-400 font-medium">Tempo de Leitura:</label>
+                <input 
+                  type="text" 
+                  value={blogFormReadTime}
+                  onChange={(e) => setBlogFormReadTime(e.target.value)}
+                  placeholder="Ex: 5 min de leitura"
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-neutral-400 font-medium">Autor do Artigo:</label>
+                <input 
+                  type="text" 
+                  value={blogFormAuthor}
+                  onChange={(e) => setBlogFormAuthor(e.target.value)}
+                  placeholder="Ex: Dra. Claudia França"
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-neutral-400 font-medium">URL da Imagem de Capa:</label>
+                <span className="text-[9px] text-neutral-500 font-mono">(Deixe vazio para usar capa padrão)</span>
+              </div>
+              <input 
+                type="url" 
+                value={blogFormImageUrl}
+                onChange={(e) => setBlogFormImageUrl(e.target.value)}
+                placeholder="https://images.unsplash.com/..."
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-neutral-400 font-medium">Resumo do Artigo (Excerpt - exibido na lista):</label>
+              <textarea 
+                rows={2}
+                value={blogFormExcerpt}
+                onChange={(e) => setBlogFormExcerpt(e.target.value)}
+                placeholder="Uma breve introdução instigante sobre o tema para prender a atenção do leitor..."
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne leading-relaxed"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-neutral-400 font-medium">Conteúdo Completo do Artigo:</label>
+              <textarea 
+                rows={6}
+                value={blogFormContent}
+                onChange={(e) => setBlogFormContent(e.target.value)}
+                placeholder="Escreva aqui o artigo completo. Você pode separar parágrafos para uma leitura confortável e envolvente..."
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne leading-relaxed"
+                required
+              />
+            </div>
+
+            <div className="flex gap-2.5 pt-2 border-t border-neutral-800">
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsBlogModalOpen(false);
+                  setEditingBlogPost(null);
+                }}
+                className="flex-1 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-400 font-semibold rounded-xl text-center uppercase tracking-wider cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit"
+                className="flex-1 py-2.5 bg-gold-champagne text-neutral-950 font-bold rounded-xl text-center uppercase tracking-wider hover:bg-white transition-colors cursor-pointer"
+              >
+                {editingBlogPost ? 'Salvar Alterações' : 'Publicar Artigo'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
