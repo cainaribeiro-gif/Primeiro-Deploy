@@ -196,5 +196,17 @@ export interface SiteContent {
   brandSub?: string;
   brandCro?: string;
   brandType?: string;
+
+  // New visual identity fields
+  logoPrincipal?: string;
+  logoClara?: string;
+  logoEscura?: string;
+  favicon?: string;
+  contactWhatsapp?: string;
+  clinicMapsLink?: string;
+  clinicHours?: string;
+  brandColorPrimary?: string;
+  brandColorSecondary?: string;
+  brandColorBackground?: string;
 }
 

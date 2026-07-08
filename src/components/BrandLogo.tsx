@@ -6,7 +6,20 @@ export function useBrandConfig() {
     brandName: "Dra. Claudia França",
     brandSub: "Saúde & Estética",
     brandCro: "CRO-SP 143883",
-    brandType: "Clínica Odontológica"
+    brandType: "Clínica Odontológica",
+    logoPrincipal: "",
+    logoClara: "",
+    logoEscura: "",
+    favicon: "",
+    contactPhone: "(11) 3271-7271 / (11) 99534-9751",
+    contactWhatsapp: "(11) 99534-9751",
+    contactEmail: "contato@draclaudiafranca.com.br",
+    contactAddress: "Rua Gama Cerqueira, 726, Sala 02, Cambuci, São Paulo/SP, CEP 01539-010",
+    clinicMapsLink: "https://maps.app.goo.gl/VUebcvBKzmWi5aVG8",
+    clinicHours: "Segunda a Sexta: 08h às 19h | Sábado: 08h às 13h",
+    brandColorPrimary: "#C5A059",
+    brandColorSecondary: "#8C434E",
+    brandColorBackground: "#FDFBF9"
   });
 
   useEffect(() => {
@@ -19,7 +32,20 @@ export function useBrandConfig() {
             brandName: content.brandName || "Dra. Claudia França",
             brandSub: content.brandSub || "Saúde & Estética",
             brandCro: content.brandCro || "CRO-SP 143883",
-            brandType: content.brandType || "Clínica Odontológica"
+            brandType: content.brandType || "Clínica Odontológica",
+            logoPrincipal: content.logoPrincipal || "",
+            logoClara: content.logoClara || "",
+            logoEscura: content.logoEscura || "",
+            favicon: content.favicon || "",
+            contactPhone: content.contactPhone || "(11) 3271-7271 / (11) 99534-9751",
+            contactWhatsapp: content.contactWhatsapp || "(11) 99534-9751",
+            contactEmail: content.contactEmail || "contato@draclaudiafranca.com.br",
+            contactAddress: content.contactAddress || "Rua Gama Cerqueira, 726, Sala 02, Cambuci, São Paulo/SP, CEP 01539-010",
+            clinicMapsLink: content.clinicMapsLink || "https://maps.app.goo.gl/VUebcvBKzmWi5aVG8",
+            clinicHours: content.clinicHours || "Segunda a Sexta: 08h às 19h | Sábado: 08h às 13h",
+            brandColorPrimary: content.brandColorPrimary || "#C5A059",
+            brandColorSecondary: content.brandColorSecondary || "#8C434E",
+            brandColorBackground: content.brandColorBackground || "#FDFBF9"
           });
         } catch (e) {
           console.error('Error parsing site_content in BrandLogo hook', e);
@@ -36,6 +62,23 @@ export function useBrandConfig() {
       window.removeEventListener('brand_update', updateBrand);
     };
   }, []);
+
+  // Set Favicon in DOM dynamically if exists
+  useEffect(() => {
+    if (config.favicon) {
+      try {
+        let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'shortcut icon';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = config.favicon;
+      } catch (err) {
+        console.error("Error setting favicon in DOM", err);
+      }
+    }
+  }, [config.favicon]);
 
   return config;
 }
@@ -125,6 +168,31 @@ export function BrandLogoHorizontal({ light = false }: { light?: boolean }) {
   const iconColor = light ? "#FFEBA5" : "#8C434E";
   const brand = useBrandConfig();
 
+  // Pick suitable uploaded logo image
+  const uploadedLogo = light 
+    ? (brand.logoClara || brand.logoPrincipal) 
+    : (brand.logoEscura || brand.logoPrincipal);
+
+  if (uploadedLogo) {
+    return (
+      <div className="flex items-center gap-3">
+        <img 
+          src={uploadedLogo} 
+          alt={brand.brandName} 
+          className="h-10 md:h-12 w-auto object-contain max-w-[140px]" 
+        />
+        <div className="flex flex-col border-l border-neutral-400/20 pl-3">
+          <span className="text-[7px] md:text-[8px] tracking-[0.2em] uppercase font-semibold text-brand-gold-dark font-sans leading-none mb-1">
+            {brand.brandType}
+          </span>
+          <h1 className={`font-serif text-xs md:text-sm font-light tracking-[0.08em] ${textColor} uppercase leading-none`}>
+            {brand.brandName}
+          </h1>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-4">
       <ToothIcon className="w-12 h-12 md:w-14 md:h-14 shrink-0" color={iconColor} />
@@ -155,6 +223,31 @@ export function BrandLogoVertical({ light = false }: { light?: boolean }) {
   const descColor = light ? "text-white/60" : "text-neutral-500";
   const iconColor = light ? "#FFEBA5" : "#8C434E";
   const brand = useBrandConfig();
+
+  // Pick suitable uploaded logo image
+  const uploadedLogo = light 
+    ? (brand.logoClara || brand.logoPrincipal) 
+    : (brand.logoEscura || brand.logoPrincipal);
+
+  if (uploadedLogo) {
+    return (
+      <div className="flex flex-col items-center text-center">
+        <img 
+          src={uploadedLogo} 
+          alt={brand.brandName} 
+          className="h-16 md:h-20 w-auto object-contain max-w-[240px]" 
+        />
+        <div className="flex flex-col items-center mt-3">
+          <span className="text-[8px] tracking-[0.25em] uppercase font-semibold text-brand-gold-dark font-sans">
+            {brand.brandType}
+          </span>
+          <h1 className={`font-serif text-base md:text-lg font-light tracking-[0.1em] ${textColor} uppercase leading-tight mt-1`}>
+            {brand.brandName}
+          </h1>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center text-center">

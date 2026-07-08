@@ -159,19 +159,6 @@ export default function RestrictedLoginPage({
   return (
     <div className="min-h-screen bg-[#FDFBF9] flex flex-col lg:flex-row font-sans text-neutral-800 relative overflow-x-hidden">
       
-      {/* Floating Website Personalizer Button */}
-      {siteContent && onSaveSiteContent && (
-        <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
-          <button
-            onClick={() => setShowEditor(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-wine text-white hover:bg-neutral-900 transition-all text-xs font-bold tracking-widest uppercase cursor-pointer shadow-lg hover:shadow-xl rounded-none border border-brand-wine/10 animate-[pulse_3s_infinite]"
-          >
-            <Sparkles className="w-4 h-4 text-[#FFEBA5]" />
-            <span>Personalizar Website</span>
-          </button>
-        </div>
-      )}
-
       {/* Left Column: Visual & Aesthetic Brand Panel */}
       <div className="hidden lg:flex lg:w-5/12 bg-gradient-to-br from-brand-wine-dark to-brand-wine relative flex-col justify-between p-16 text-white overflow-hidden border-r border-neutral-100">
         <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_center,_#FFEBA5_0%,_transparent_75%)]"></div>

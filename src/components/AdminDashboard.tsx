@@ -8,13 +8,13 @@ import {
   BarChart3, Users, Calendar as CalendarIcon, DollarSign, Settings2, Target, Eye, 
   TrendingUp, ArrowRight, UserPlus, FileText, Search, Plus, Trash2, Edit2, Check,
   X, Filter, CalendarDays, Clock, HelpCircle, Briefcase, ChevronRight, Tag, Share2,
-  Paperclip, MessageSquare, Sparkles, Database, Star, BookOpen
+  Paperclip, MessageSquare, Sparkles, Database, Star, BookOpen, Save, UploadCloud, ShieldCheck, MapPin, Settings
 } from 'lucide-react';
 import { getSupabaseConfig, SUPABASE_SQL_SCHEMA, syncPendingData, sendLeadToSupabase, sendAppointmentToSupabase, sendReviewToSupabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { ToothIcon } from './BrandLogo';
 import { 
-  Patient, Lead, Appointment, BlogPost, Review, FinanceRecord, MarketingCampaign, CRMStage 
+  Patient, Lead, Appointment, BlogPost, Review, FinanceRecord, MarketingCampaign, CRMStage, SiteContent 
 } from '../types';
 import { 
   INITIAL_PATIENTS, INITIAL_LEADS, INITIAL_APPOINTMENTS, INITIAL_SERVICES, 
@@ -29,6 +29,11 @@ interface AdminDashboardProps {
   setAppointments?: React.Dispatch<React.SetStateAction<Appointment[]>>;
   reviews?: Review[];
   setReviews?: React.Dispatch<React.SetStateAction<Review[]>>;
+  siteContent?: SiteContent;
+  onSaveSiteContent?: (newContent: SiteContent) => void;
+  isEditMode?: boolean;
+  setIsEditMode?: (active: boolean) => void;
+  setCurrentView?: (view: 'landing' | 'patient' | 'admin' | 'login') => void;
 }
 
 export default function AdminDashboard({ 
@@ -38,7 +43,12 @@ export default function AdminDashboard({
   appointments: propAppointments,
   setAppointments: propSetAppointments,
   reviews: propReviews,
-  setReviews: propSetReviews
+  setReviews: propSetReviews,
+  siteContent,
+  onSaveSiteContent,
+  isEditMode,
+  setIsEditMode,
+  setCurrentView
 }: AdminDashboardProps) {
   // Global admin states initialized from our mockup data
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
@@ -80,7 +90,7 @@ export default function AdminDashboard({
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   // Navigation state inside admin panel
-  const [activeTab, setActiveTab] = useState<'insights' | 'crm' | 'patients' | 'agenda' | 'finance' | 'website' | 'supabase' | 'reviews'>('insights');
+  const [activeTab, setActiveTab] = useState<'insights' | 'crm' | 'patients' | 'agenda' | 'finance' | 'website' | 'supabase' | 'reviews' | 'identity'>('insights');
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState('');
@@ -94,10 +104,96 @@ export default function AdminDashboard({
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
 
-  // State to simulate website text edits
-  const [headline, setHeadline] = useState('Tratamento com empatia para transformar sorrisos e vidas.');
-  const [subHeadline, setSubHeadline] = useState('Excelência técnica, estética avançada e atendimento humanizado.');
+  // State to simulate website text edits, initialized from siteContent prop
+  const [headline, setHeadline] = useState(() => siteContent?.heroTitle || 'Tratamento com empatia para transformar sorrisos e vidas.');
+  const [subHeadline, setSubHeadline] = useState(() => siteContent?.heroSubtitle || 'Excelência técnica, estética avançada e atendimento humanizado.');
   const [seoDescription, setSeoDescription] = useState('Dra. Claudia França - Especialista em Harmonização Orofacial, Invisalign, Implantes Dentários de carga imediata no Cambuci, São Paulo.');
+
+  // Sync states if siteContent changes
+  useEffect(() => {
+    if (siteContent) {
+      if (siteContent.heroTitle) setHeadline(siteContent.heroTitle);
+      if (siteContent.heroSubtitle) setSubHeadline(siteContent.heroSubtitle);
+    }
+  }, [siteContent]);
+
+  // Brand identity handlers
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logoPrincipal' | 'logoClara' | 'logoEscura' | 'favicon') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string' && onSaveSiteContent && siteContent) {
+        const updated = {
+          ...siteContent,
+          [field]: reader.result
+        } as SiteContent;
+        onSaveSiteContent(updated);
+        // Trigger global BrandLogo update
+        window.dispatchEvent(new Event('brand_update'));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = (field: 'logoPrincipal' | 'logoClara' | 'logoEscura' | 'favicon') => {
+    if (onSaveSiteContent && siteContent) {
+      const updated = {
+        ...siteContent,
+        [field]: ''
+      } as SiteContent;
+      onSaveSiteContent(updated);
+      // Trigger global BrandLogo update
+      window.dispatchEvent(new Event('brand_update'));
+    }
+  };
+
+  const handleColorChange = (field: 'brandColorPrimary' | 'brandColorSecondary' | 'brandColorBackground', value: string) => {
+    if (onSaveSiteContent && siteContent) {
+      const updated = {
+        ...siteContent,
+        [field]: value
+      } as SiteContent;
+      onSaveSiteContent(updated);
+      // Trigger global BrandLogo update
+      window.dispatchEvent(new Event('brand_update'));
+    }
+  };
+
+  const handleColorPreset = (primary: string, secondary: string, background: string) => {
+    if (onSaveSiteContent && siteContent) {
+      const updated = {
+        ...siteContent,
+        brandColorPrimary: primary,
+        brandColorSecondary: secondary,
+        brandColorBackground: background
+      } as SiteContent;
+      onSaveSiteContent(updated);
+      // Trigger global BrandLogo update
+      window.dispatchEvent(new Event('brand_update'));
+    }
+  };
+
+  const handleFieldChange = (field: keyof SiteContent, value: string) => {
+    if (onSaveSiteContent && siteContent) {
+      const updated = {
+        ...siteContent,
+        [field]: value
+      } as SiteContent;
+      onSaveSiteContent(updated);
+      // Trigger global BrandLogo update
+      window.dispatchEvent(new Event('brand_update'));
+    }
+  };
+
+  const handleSaveVisualIdentity = () => {
+    if (siteContent) {
+      localStorage.setItem('site_content', JSON.stringify(siteContent));
+      window.dispatchEvent(new Event('brand_update'));
+      alert('Identidade Visual salva com sucesso!');
+    }
+  };
 
   // Google Reviews Tab States
   const [placeId, setPlaceId] = useState(() => localStorage.getItem('google_place_id') || 'ChIJy99u_9VZzpQRrW4Y3_3vA9M');
@@ -595,6 +691,14 @@ export default function AdminDashboard({
             >
               <Settings2 className="w-4 h-4" />
               Gestão do Site & SEO
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('identity')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${activeTab === 'identity' ? 'bg-gold-champagne text-neutral-950 shadow-md font-bold' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'}`}
+            >
+              <Sparkles className="w-4 h-4 text-brand-gold" />
+              Identidade Visual
             </button>
 
             <button 
@@ -1375,12 +1479,48 @@ export default function AdminDashboard({
               </div>
               <button 
                 onClick={() => {
+                  if (siteContent && onSaveSiteContent) {
+                    const updated = {
+                      ...siteContent,
+                      heroTitle: headline,
+                      heroSubtitle: subHeadline,
+                    };
+                    onSaveSiteContent(updated);
+                  }
                   alert('Modificações de texto e SEO aplicadas com sucesso no site público!');
                 }}
-                className="bg-gold-champagne text-neutral-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:bg-gold-champagne/90 transition-all shadow-md self-start sm:self-center"
+                className="bg-gold-champagne text-neutral-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:bg-gold-champagne/90 transition-all shadow-md self-start sm:self-center cursor-pointer"
               >
                 Salvar Alterações do Site
               </button>
+            </div>
+
+            {/* Visual Editor Integrated Access (DOCTOR RESTRITA ONLY) */}
+            <div className="bg-gradient-to-br from-[#1C1212] to-neutral-950 p-6 rounded-2xl border border-gold-champagne/20 space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-1 md:max-w-xl">
+                  <div className="flex items-center gap-2 text-gold-champagne font-bold text-xs uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4 text-gold-champagne animate-pulse" />
+                    Editor Visual Interativo em Tempo Real
+                  </div>
+                  <p className="text-[11px] text-neutral-300 leading-relaxed">
+                    Você pode editar de forma totalmente visual o site público. Ao ativar o modo visual, você será direcionada para a página inicial onde poderá clicar diretamente sobre qualquer texto ou foto para alterá-los instantaneamente.
+                  </p>
+                </div>
+                {setIsEditMode && setCurrentView && (
+                  <button
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setCurrentView('landing');
+                      window.location.hash = ''; // Navega para a home
+                    }}
+                    className="bg-gold-champagne text-neutral-950 hover:bg-white transition-all font-bold text-xs uppercase tracking-wider px-5 py-3 rounded-xl flex items-center gap-2 shadow-lg cursor-pointer self-start md:self-center whitespace-nowrap"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Ativar Edição Visual no Site
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1929,6 +2069,451 @@ export default function AdminDashboard({
               </div>
 
             </div>
+          </div>
+        )}
+
+        {/* TAB 9: IDENTIDADE VISUAL & LOGO EDITOR */}
+        {activeTab === 'identity' && (
+          <div className="space-y-6 text-xs text-neutral-300">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+              <div>
+                <h1 className="font-serif text-xl text-brand-gold flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-brand-gold" />
+                  Identidade Visual & Configurações da Marca
+                </h1>
+                <p className="text-xs text-neutral-400">
+                  Gerencie as logos, favicon, dados da clínica e paleta de cores. As alterações são aplicadas globalmente em tempo real.
+                </p>
+              </div>
+            </div>
+
+            {/* Editor Layout Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Side: Logo Uploads & Color Selection */}
+              <div className="lg:col-span-7 space-y-6">
+                
+                {/* Panel 1: Logos & Favicon */}
+                <div className="bg-neutral-950 p-6 rounded-2xl border border-neutral-800 space-y-6">
+                  <h3 className="font-serif text-sm text-brand-gold border-b border-neutral-900 pb-2 uppercase tracking-wider flex items-center gap-2">
+                    <UploadCloud className="w-4 h-4" />
+                    Logotipos & Favicon (Formatos suportados: PNG, JPG, WEBP, SVG)
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Logo Principal */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-bold block uppercase tracking-wide text-[10px]">Logo Principal (Versão Padrão)</label>
+                      <div className="border border-neutral-800 bg-neutral-900/50 p-4 rounded-xl flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden group min-h-[160px]">
+                        {siteContent?.logoPrincipal ? (
+                          <div className="space-y-2">
+                            <img src={siteContent.logoPrincipal} alt="Logo Principal Preview" className="h-14 max-w-full object-contain mx-auto" />
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveLogo('logoPrincipal')}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-semibold uppercase tracking-wider block mx-auto hover:underline"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 py-4">
+                            <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 mx-auto border border-neutral-700">
+                              <Plus className="w-5 h-5" />
+                            </div>
+                            <p className="text-[10px] text-neutral-500 font-medium">Nenhuma logo cadastrada</p>
+                          </div>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleLogoUpload(e, 'logoPrincipal')}
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          title="Fazer upload de nova logo"
+                        />
+                      </div>
+                      <span className="text-[9px] text-neutral-500 block leading-tight">Será exibida no menu superior escuro e áreas gerais.</span>
+                    </div>
+
+                    {/* Logo Versão Clara */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-bold block uppercase tracking-wide text-[10px]">Logo Versão Clara (Contraste Escuro)</label>
+                      <div className="border border-neutral-800 bg-neutral-950 p-4 rounded-xl flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden group min-h-[160px]">
+                        {siteContent?.logoClara ? (
+                          <div className="space-y-2">
+                            <img src={siteContent.logoClara} alt="Logo Clara Preview" className="h-14 max-w-full object-contain mx-auto" />
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveLogo('logoClara')}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-semibold uppercase tracking-wider block mx-auto hover:underline"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 py-4">
+                            <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 mx-auto border border-neutral-700">
+                              <Plus className="w-5 h-5" />
+                            </div>
+                            <p className="text-[10px] text-neutral-500 font-medium">Nenhuma logo cadastrada</p>
+                          </div>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleLogoUpload(e, 'logoClara')}
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          title="Fazer upload de logo clara"
+                        />
+                      </div>
+                      <span className="text-[9px] text-neutral-500 block leading-tight">Indicada para rodapés escuros ou sobre imagens contrastantes.</span>
+                    </div>
+
+                    {/* Logo Versão Escura */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-bold block uppercase tracking-wide text-[10px]">Logo Versão Escura (Contraste Claro)</label>
+                      <div className="border border-neutral-800 bg-white/5 p-4 rounded-xl flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden group min-h-[160px]">
+                        {siteContent?.logoEscura ? (
+                          <div className="space-y-2">
+                            <img src={siteContent.logoEscura} alt="Logo Escura Preview" className="h-14 max-w-full object-contain mx-auto" />
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveLogo('logoEscura')}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-semibold uppercase tracking-wider block mx-auto hover:underline"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 py-4">
+                            <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 mx-auto border border-neutral-700">
+                              <Plus className="w-5 h-5" />
+                            </div>
+                            <p className="text-[10px] text-neutral-500 font-medium">Nenhuma logo cadastrada</p>
+                          </div>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleLogoUpload(e, 'logoEscura')}
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          title="Fazer upload de logo escura"
+                        />
+                      </div>
+                      <span className="text-[9px] text-neutral-500 block leading-tight">Indicada para fundos claros ou mídias impressas.</span>
+                    </div>
+
+                    {/* Favicon */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-bold block uppercase tracking-wide text-[10px]">Ícone do Navegador (Favicon)</label>
+                      <div className="border border-neutral-800 bg-neutral-900/50 p-4 rounded-xl flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden group min-h-[160px]">
+                        {siteContent?.favicon ? (
+                          <div className="space-y-2">
+                            <img src={siteContent.favicon} alt="Favicon Preview" className="w-12 h-12 object-contain mx-auto rounded-lg border border-neutral-700 p-1" />
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveLogo('favicon')}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-semibold uppercase tracking-wider block mx-auto hover:underline"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 py-4">
+                            <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 mx-auto border border-neutral-700">
+                              <Plus className="w-5 h-5" />
+                            </div>
+                            <p className="text-[10px] text-neutral-500 font-medium">Nenhum favicon cadastrado</p>
+                          </div>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleLogoUpload(e, 'favicon')}
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          title="Fazer upload do favicon"
+                        />
+                      </div>
+                      <span className="text-[9px] text-neutral-500 block leading-tight">Ícone que aparece na aba do navegador do paciente.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 2: Brand Colors */}
+                <div className="bg-neutral-950 p-6 rounded-2xl border border-neutral-800 space-y-6">
+                  <h3 className="font-serif text-sm text-brand-gold border-b border-neutral-900 pb-2 uppercase tracking-wider flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Cores Principais da Marca (Personalização de Paleta)
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    {/* Cor Primária */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Dourado Champagne</label>
+                      <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 p-2.5 rounded-xl">
+                        <input 
+                          type="color" 
+                          value={siteContent?.brandColorPrimary || '#C5A059'} 
+                          onChange={(e) => handleColorChange('brandColorPrimary', e.target.value)}
+                          className="w-8 h-8 rounded-lg border-0 cursor-pointer"
+                        />
+                        <input 
+                          type="text" 
+                          value={siteContent?.brandColorPrimary || '#C5A059'} 
+                          onChange={(e) => handleColorChange('brandColorPrimary', e.target.value)}
+                          className="w-full bg-transparent border-0 focus:outline-none text-neutral-100 font-mono text-xs uppercase"
+                        />
+                      </div>
+                      <p className="text-[9px] text-neutral-500">Usado em destaques, bordas finas e detalhes premium.</p>
+                    </div>
+
+                    {/* Cor Secundária */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Vinho / Accent Wine</label>
+                      <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 p-2.5 rounded-xl">
+                        <input 
+                          type="color" 
+                          value={siteContent?.brandColorSecondary || '#8C434E'} 
+                          onChange={(e) => handleColorChange('brandColorSecondary', e.target.value)}
+                          className="w-8 h-8 rounded-lg border-0 cursor-pointer"
+                        />
+                        <input 
+                          type="text" 
+                          value={siteContent?.brandColorSecondary || '#8C434E'} 
+                          onChange={(e) => handleColorChange('brandColorSecondary', e.target.value)}
+                          className="w-full bg-transparent border-0 focus:outline-none text-neutral-100 font-mono text-xs uppercase"
+                        />
+                      </div>
+                      <p className="text-[9px] text-neutral-500">Usado em botões principais, cabeçalhos de destaque.</p>
+                    </div>
+
+                    {/* Cor de Fundo */}
+                    <div className="space-y-2">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Fundo Nude / Warm</label>
+                      <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 p-2.5 rounded-xl">
+                        <input 
+                          type="color" 
+                          value={siteContent?.brandColorBackground || '#FDFBF9'} 
+                          onChange={(e) => handleColorChange('brandColorBackground', e.target.value)}
+                          className="w-8 h-8 rounded-lg border-0 cursor-pointer"
+                        />
+                        <input 
+                          type="text" 
+                          value={siteContent?.brandColorBackground || '#FDFBF9'} 
+                          onChange={(e) => handleColorChange('brandColorBackground', e.target.value)}
+                          className="w-full bg-transparent border-0 focus:outline-none text-neutral-100 font-mono text-xs uppercase"
+                        />
+                      </div>
+                      <p className="text-[9px] text-neutral-500">Fundo principal das seções institucionais do site.</p>
+                    </div>
+                  </div>
+
+                  {/* Quick Preset Options */}
+                  <div className="pt-2">
+                    <p className="text-[9px] text-neutral-400 font-medium uppercase tracking-wider mb-2">Paletas de Cores Recomendadas (Presets Rápidos)</p>
+                    <div className="flex flex-wrap gap-3">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          handleColorPreset('#C5A059', '#8C434E', '#FDFBF9');
+                        }}
+                        className="bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 px-3 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <div className="flex gap-1 shrink-0">
+                          <span className="w-3 h-3 rounded-full bg-[#C5A059]" />
+                          <span className="w-3 h-3 rounded-full bg-[#8C434E]" />
+                          <span className="w-3 h-3 rounded-full bg-[#FDFBF9]" />
+                        </div>
+                        <span className="text-[10px] font-bold text-neutral-200">Manual Dra. Claudia (Padrão)</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          handleColorPreset('#B38E5D', '#542E35', '#FAF6F0');
+                        }}
+                        className="bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 px-3 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <div className="flex gap-1 shrink-0">
+                          <span className="w-3 h-3 rounded-full bg-[#B38E5D]" />
+                          <span className="w-3 h-3 rounded-full bg-[#542E35]" />
+                          <span className="w-3 h-3 rounded-full bg-[#FAF6F0]" />
+                        </div>
+                        <span className="text-[10px] font-bold text-neutral-200">Champagne & Vinho Escuro</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          handleColorPreset('#D4AF37', '#1E3A8A', '#F8FAFC');
+                        }}
+                        className="bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 px-3 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <div className="flex gap-1 shrink-0">
+                          <span className="w-3 h-3 rounded-full bg-[#D4AF37]" />
+                          <span className="w-3 h-3 rounded-full bg-[#1E3A8A]" />
+                          <span className="w-3 h-3 rounded-full bg-[#F8FAFC]" />
+                        </div>
+                        <span className="text-[10px] font-bold text-neutral-200">Ouro Real & Azul Imperial</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Side: Typography Settings & Clinic Info Details */}
+              <div className="lg:col-span-5 space-y-6">
+                
+                {/* Panel 3: Brand Text Configuration */}
+                <div className="bg-neutral-950 p-6 rounded-2xl border border-neutral-800 space-y-4">
+                  <h3 className="font-serif text-sm text-brand-gold border-b border-neutral-900 pb-2 uppercase tracking-wider flex items-center gap-2">
+                    <Edit2 className="w-4 h-4" />
+                    Tipografia & Textos de Assinatura
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Nome da Clínica / Doutora</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.brandName || "Dra. Claudia França"}
+                        onChange={(e) => handleFieldChange('brandName', e.target.value)}
+                        placeholder="Ex: Dra. Claudia França"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne font-serif"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Subtítulo da Marca</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.brandSub || "Saúde & Estética"}
+                        onChange={(e) => handleFieldChange('brandSub', e.target.value)}
+                        placeholder="Ex: Saúde & Estética"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Registro de Classe (CRO)</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.brandCro || "CRO-SP 143883"}
+                        onChange={(e) => handleFieldChange('brandCro', e.target.value)}
+                        placeholder="Ex: CRO-SP 143883"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Tipo de Estabelecimento</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.brandType || "Clínica Odontológica"}
+                        onChange={(e) => handleFieldChange('brandType', e.target.value)}
+                        placeholder="Ex: Clínica Odontológica"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 4: Contact & Location Info Details */}
+                <div className="bg-neutral-950 p-6 rounded-2xl border border-neutral-800 space-y-4">
+                  <h3 className="font-serif text-sm text-brand-gold border-b border-neutral-900 pb-2 uppercase tracking-wider flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    Informações de Contato & Localização
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Telefones de Atendimento</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.contactPhone || "(11) 3271-7271 / (11) 99534-9751"}
+                        onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
+                        placeholder="Ex: (11) 3271-7271 / (11) 99534-9751"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">WhatsApp Oficial (Apenas número para botões)</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.contactWhatsapp || "(11) 99534-9751"}
+                        onChange={(e) => handleFieldChange('contactWhatsapp', e.target.value)}
+                        placeholder="Ex: (11) 99534-9751"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">E-mail de Relacionamento</label>
+                      <input 
+                        type="email"
+                        value={siteContent?.contactEmail || "contato@draclaudiafranca.com.br"}
+                        onChange={(e) => handleFieldChange('contactEmail', e.target.value)}
+                        placeholder="Ex: contato@draclaudiafranca.com.br"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Endereço Oficial da Clínica</label>
+                      <textarea 
+                        rows={2}
+                        value={siteContent?.contactAddress || "Rua Gama Cerqueira, 726, Sala 02, Cambuci, São Paulo/SP, CEP 01539-010"}
+                        onChange={(e) => handleFieldChange('contactAddress', e.target.value)}
+                        placeholder="Escreva o endereço completo da clínica..."
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Horário de Funcionamento</label>
+                      <input 
+                        type="text"
+                        value={siteContent?.clinicHours || "Segunda a Sexta: 08h às 19h | Sábado: 08h às 13h"}
+                        onChange={(e) => handleFieldChange('clinicHours', e.target.value)}
+                        placeholder="Ex: Segunda a Sexta: 08h às 19h | Sábado: 08h às 13h"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-neutral-400 font-semibold block uppercase tracking-wide text-[9px]">Link Oficial de Localização (Google Maps)</label>
+                      <input 
+                        type="url"
+                        value={siteContent?.clinicMapsLink || "https://maps.app.goo.gl/VUebcvBKzmWi5aVG8"}
+                        onChange={(e) => handleFieldChange('clinicMapsLink', e.target.value)}
+                        placeholder="Cole aqui o link compartilhado do Google Maps..."
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-gold-champagne font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Persistent Action Panel */}
+                <div className="bg-neutral-950 p-4 rounded-2xl border border-neutral-800 flex justify-between items-center gap-4">
+                  <div className="text-[10px] text-neutral-400 flex items-center gap-1.5 leading-snug">
+                    <ShieldCheck className="w-4 h-4 text-brand-gold shrink-0" />
+                    <span>Todas as alterações são seguras e replicadas instantaneamente.</span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={handleSaveVisualIdentity}
+                    className="bg-gold-champagne hover:bg-white text-neutral-950 px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[11px] transition-all flex items-center gap-2 cursor-pointer shadow-md shrink-0 hover:scale-[1.02]"
+                  >
+                    <Save className="w-4 h-4" />
+                    Salvar Alterações
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
           </div>
         )}
 

@@ -13,6 +13,68 @@ import { INITIAL_APPOINTMENTS, INITIAL_LEADS, INITIAL_REVIEWS } from './mockData
 import { Appointment, Lead, SiteContent, Review } from './types';
 import { DEFAULT_SITE_CONTENT } from './defaultSiteContent';
 import { sendLeadToSupabase } from './lib/supabase';
+import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
+
+const API_KEY =
+  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
+  '';
+const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
+
+function GoogleReviewsFetcher({ onReviewsFetched }: { onReviewsFetched: (reviews: Review[]) => void }) {
+  const placesLib = useMapsLibrary('places');
+
+  useEffect(() => {
+    if (!placesLib) return;
+
+    const fetchGoogleReviews = async () => {
+      try {
+        const { places } = await placesLib.Place.searchByText({
+          textQuery: "Clínica Dra Cláudia França Cambuci São Paulo",
+          fields: ["id", "displayName"],
+          maxResultCount: 1
+        });
+
+        if (places && places.length > 0) {
+          const targetPlace = places[0];
+          await targetPlace.fetchFields({
+            fields: ["reviews", "rating", "userRatingCount", "displayName"]
+          });
+
+          if (targetPlace.reviews && targetPlace.reviews.length > 0) {
+            const mapped: Review[] = targetPlace.reviews.map((r, index) => {
+              const authorName = r.authorAttribution?.displayName || "Usuário do Google";
+              const authorPhoto = r.authorAttribution?.photoURI || "";
+              const text = r.text || "";
+              const rating = r.rating || 5;
+              const relativeTime = r.relativePublishTimeDescription || "Recentemente";
+
+              return {
+                id: `google-${index}-${Date.now()}`,
+                author: authorName,
+                rating: rating,
+                text: text,
+                date: relativeTime,
+                source: 'google',
+                avatarUrl: authorPhoto,
+                approved: true,
+                treatment: "Estética Odontológica"
+              };
+            });
+            onReviewsFetched(mapped);
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to fetch real Google reviews:", error);
+      }
+    };
+
+    fetchGoogleReviews();
+  }, [placesLib, onReviewsFetched]);
+
+  return null;
+}
 
 export default function App() {
   // Global shared state for real-time interaction simulation
@@ -144,7 +206,7 @@ export default function App() {
     });
   };
 
-  return (
+  const appContent = (
     <div className="min-h-screen bg-nude-warm">
       
       {/* 1. Main views router */}
@@ -156,6 +218,11 @@ export default function App() {
           isEditMode={isEditMode}
           setIsEditMode={setIsEditMode}
           reviews={reviews}
+          onBackToAdmin={() => {
+            setIsEditMode(false);
+            setCurrentView('admin');
+            window.location.hash = 'admin';
+          }}
         />
       )}
 
@@ -175,6 +242,11 @@ export default function App() {
           setAppointments={setAppointments}
           reviews={reviews}
           setReviews={setReviews}
+          siteContent={siteContent}
+          onSaveSiteContent={handleSaveSiteContent}
+          isEditMode={isEditMode}
+          setIsEditMode={setIsEditMode}
+          setCurrentView={setCurrentView}
         />
       )}
 
@@ -192,4 +264,17 @@ export default function App() {
 
     </div>
   );
+
+  if (hasValidKey) {
+    return (
+      <APIProvider apiKey={API_KEY} version="weekly">
+        {appContent}
+        {currentView === 'landing' && (
+          <GoogleReviewsFetcher onReviewsFetched={setReviews} />
+        )}
+      </APIProvider>
+    );
+  }
+
+  return appContent;
 }
