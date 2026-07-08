@@ -190,6 +190,9 @@ export default function AdminDashboard({
   const handleSaveVisualIdentity = () => {
     if (siteContent) {
       localStorage.setItem('site_content', JSON.stringify(siteContent));
+      if (onSaveSiteContent) {
+        onSaveSiteContent(siteContent);
+      }
       window.dispatchEvent(new Event('brand_update'));
       alert('Identidade Visual salva com sucesso!');
     }

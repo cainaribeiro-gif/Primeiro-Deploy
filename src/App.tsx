@@ -136,11 +136,56 @@ export default function App() {
     return DEFAULT_SITE_CONTENT;
   });
 
+  // Fetch custom site content from backend on mount so it's synchronized on all devices/urls
+  useEffect(() => {
+    const fetchSiteContent = async () => {
+      try {
+        const response = await fetch('/api/site-content');
+        if (response.ok) {
+          const fetchedData = await response.json();
+          if (fetchedData && Object.keys(fetchedData).length > 0) {
+            // Clean up old placeholder URLs if present
+            if (fetchedData.clinicSpaces) {
+              fetchedData.clinicSpaces = fetchedData.clinicSpaces.map((space: any) => {
+                if (space.id === 'fachada' && space.imageUrl === 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=800') {
+                  space.imageUrl = DEFAULT_SITE_CONTENT.clinicSpaces[0].imageUrl;
+                }
+                return space;
+              });
+            }
+            const merged = { ...DEFAULT_SITE_CONTENT, ...fetchedData };
+            setSiteContent(merged);
+            localStorage.setItem('site_content', JSON.stringify(merged));
+            // Dispatch event to update components (e.g. BrandLogo)
+            window.dispatchEvent(new Event('brand_update'));
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar conteúdo customizado do servidor:', err);
+      }
+    };
+    fetchSiteContent();
+  }, []);
+
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
 
-  const handleSaveSiteContent = (newContent: SiteContent) => {
+  const handleSaveSiteContent = async (newContent: SiteContent) => {
     setSiteContent(newContent);
     localStorage.setItem('site_content', JSON.stringify(newContent));
+
+    try {
+      await fetch('/api/site-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newContent)
+      });
+      // Also trigger update event
+      window.dispatchEvent(new Event('brand_update'));
+    } catch (err) {
+      console.warn('Erro ao salvar conteúdo no servidor:', err);
+    }
   };
 
   // App viewport routing: 'landing' | 'patient' | 'admin' | 'login'
